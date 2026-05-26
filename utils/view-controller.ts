@@ -1,14 +1,12 @@
 import { runOnUIKit } from './native-script';
 
-type NativeGlobals = typeof globalThis & Record<string, any>;
-
 function nativeBool(target: any, key: string) {
   const value = target?.[key];
   return typeof value === 'function' ? Boolean(value.call(target)) : Boolean(value);
 }
 
-function visibleViewController(native: NativeGlobals) {
-  const application = native.UIApplication.sharedApplication;
+function visibleViewController(): UIViewController {
+  const application = UIApplication.sharedApplication;
   const root = application.keyWindow?.rootViewController;
 
   if (!root) {
@@ -27,12 +25,12 @@ function visibleViewController(native: NativeGlobals) {
     current = presented;
   }
 
-  if (current.visibleViewController) {
-    current = current.visibleViewController;
+  if ((current as UINavigationController).visibleViewController) {
+    current = (current as UINavigationController).visibleViewController;
   }
 
-  if (current.selectedViewController) {
-    current = current.selectedViewController;
+  if ((current as UITabBarController).selectedViewController) {
+    current = (current as UITabBarController).selectedViewController;
   }
 
   return current;
@@ -43,21 +41,21 @@ function delay(milliseconds: number) {
 }
 
 export async function presentNativeViewController(
-  makeViewController: (native: NativeGlobals) => any,
+  makeViewController: () => UIViewController,
 ) {
   for (let attempt = 0; attempt < 25; attempt += 1) {
-    const result = await runOnUIKit((native) => {
-      const presenter = visibleViewController(native);
+    const result = await runOnUIKit(() => {
+      const presenter = visibleViewController();
 
       if (presenter.presentedViewController) {
         return false;
       }
 
-      const viewController = makeViewController(native);
+      const viewController = makeViewController();
       presenter.presentViewControllerAnimatedCompletion(
         viewController,
         true,
-        null,
+        () => {}
       );
 
       return true;
@@ -73,12 +71,12 @@ export async function presentNativeViewController(
   throw new Error('The previous native sheet is still closing.');
 }
 
-export async function dismissNativeViewController(viewController: any) {
+export async function dismissNativeViewController(viewController: UIViewController) {
   await runOnUIKit(() => {
-    viewController.dismissViewControllerAnimatedCompletion(true, null);
+    viewController.dismissViewControllerAnimatedCompletion(true, () => {});
   });
 }
 
 export async function getTopViewController() {
-  return runOnUIKit((native) => visibleViewController(native));
+  return runOnUIKit(() => visibleViewController());
 }

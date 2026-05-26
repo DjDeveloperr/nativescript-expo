@@ -1,6 +1,6 @@
 import NativeScript from '@nativescript/react-native';
 
-type NativeGlobals = typeof globalThis & Record<string, any>;
+type NativeGlobals = typeof globalThis & Record<string, unknown>;
 
 let installed = false;
 
@@ -14,7 +14,7 @@ export function ensureNativeScript() {
   }
 }
 
-export async function runOnUIKit<T>(work: (native: NativeGlobals) => T) {
+export async function runOnUIKit<T>(work: () => T) {
   ensureNativeScript();
 
   let result: T | undefined;
@@ -22,7 +22,7 @@ export async function runOnUIKit<T>(work: (native: NativeGlobals) => T) {
 
   await NativeScript.runOnUI(() => {
     try {
-      result = work(globalThis as NativeGlobals);
+      result = work();
     } catch (error) {
       thrown = error;
     }
@@ -40,13 +40,13 @@ export function nativeGlobals() {
   return globalThis as NativeGlobals;
 }
 
-export function loadSystemFramework(native: NativeGlobals, framework: string) {
-  const existingClass = native[`${framework}VersionNumber`];
+export function loadSystemFramework(framework: string) {
+  const existingClass = nativeGlobals()[`${framework}VersionNumber`];
   if (existingClass !== undefined) {
     return;
   }
 
-  const bundle = native.NSBundle.bundleWithPath(
+  const bundle = NSBundle.bundleWithPath(
     `/System/Library/Frameworks/${framework}.framework`,
   );
 

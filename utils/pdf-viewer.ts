@@ -1,18 +1,22 @@
-import { presentNativeViewController } from './view-controller';
-import { loadSystemFramework, runOnUIKit } from './native-script';
+import { presentNativeViewController } from "./view-controller";
+import { loadSystemFramework, runOnUIKit } from "./native-script";
 
-let previewDataSource: any;
-let activePreviewDataSources: any[] = [];
+type QLPreviewControllerDataSourceWithUrl = QLPreviewControllerDataSource & {
+  previewUrl: NSURL;
+  new: () => QLPreviewControllerDataSourceWithUrl;
+};
+let previewDataSource: QLPreviewControllerDataSourceWithUrl | null = null;
+let activePreviewDataSources: QLPreviewControllerDataSourceWithUrl[] = [];
 
-function registerPreviewDataSource(native: Record<string, any>) {
+function registerPreviewDataSource(): QLPreviewControllerDataSourceWithUrl {
   if (previewDataSource) {
     return previewDataSource;
   }
 
-  previewDataSource = native.NSObject.extend(
+  previewDataSource = (NSObject as any).extend(
     {
       numberOfPreviewItemsInPreviewController() {
-      return 1;
+        return 1;
       },
 
       previewControllerPreviewItemAtIndex() {
@@ -21,38 +25,36 @@ function registerPreviewDataSource(native: Record<string, any>) {
     },
     {
       name: `NativeScriptRNPDFPreviewDataSource${Date.now()}`,
-      protocols: [native.QLPreviewControllerDataSource],
+      protocols: [QLPreviewControllerDataSource],
     },
   );
-  return previewDataSource;
+  return previewDataSource as QLPreviewControllerDataSourceWithUrl;
 }
 
 export async function createSamplePDF() {
-  return runOnUIKit((native) => {
-    const path = `${native.NSTemporaryDirectory()}nativescript-rn-demo.pdf`;
+  return runOnUIKit(() => {
+    const path = `${NSTemporaryDirectory()}nativescript-rn-demo.pdf`;
     const bounds = {
       origin: { x: 0, y: 0 },
       size: { width: 612, height: 792 },
     };
 
-    native.UIGraphicsBeginPDFContextToFile(path, bounds, {});
-    native.UIGraphicsBeginPDFPage();
-    native.UIColor.whiteColor.setFill();
-    native.UIRectFill(bounds);
+    UIGraphicsBeginPDFContextToFile(path, bounds, {});
+    UIGraphicsBeginPDFPage();
+    UIColor.whiteColor.setFill();
+    UIRectFill(bounds);
 
-    const title = native.NSString.stringWithString('NativeScript React Native');
+    const title = NSString.stringWithString("NativeScript React Native");
     title.drawAtPointWithAttributes(
       { x: 72, y: 96 },
       {
-        [native.NSFontAttributeName]:
-          native.UIFont.boldSystemFontOfSize(30),
-        [native.NSForegroundColorAttributeName]:
-          native.UIColor.blackColor,
+        [NSFontAttributeName]: UIFont.boldSystemFontOfSize(30),
+        [NSForegroundColorAttributeName]: UIColor.blackColor,
       },
     );
 
-    const body = native.NSString.stringWithString(
-      'This PDF was generated with UIKit and opened with QuickLook through the NativeScript native API bridge.',
+    const body = NSString.stringWithString(
+      "This PDF was generated with UIKit and opened with QuickLook via NativeScript.",
     );
     body.drawInRectWithAttributes(
       {
@@ -60,13 +62,12 @@ export async function createSamplePDF() {
         size: { width: 468, height: 220 },
       },
       {
-        [native.NSFontAttributeName]: native.UIFont.systemFontOfSize(17),
-        [native.NSForegroundColorAttributeName]:
-          native.UIColor.darkGrayColor,
+        [NSFontAttributeName]: UIFont.systemFontOfSize(17),
+        [NSForegroundColorAttributeName]: UIColor.darkGrayColor,
       },
     );
 
-    native.UIGraphicsEndPDFContext();
+    UIGraphicsEndPDFContext();
     return path;
   });
 }
@@ -74,14 +75,14 @@ export async function createSamplePDF() {
 export async function openNativePDFViewer(filePath?: string) {
   const path = filePath ?? (await createSamplePDF());
 
-  await presentNativeViewController((native) => {
-    loadSystemFramework(native, 'QuickLook');
+  await presentNativeViewController(() => {
+    loadSystemFramework("QuickLook");
 
-    const url = native.NSURL.fileURLWithPath(path);
-    const DataSource = registerPreviewDataSource(native);
-    const source = DataSource.new();
+    const url = NSURL.fileURLWithPath(path);
+    const DataSource = registerPreviewDataSource();
+    const source = DataSource.new() as QLPreviewControllerDataSourceWithUrl;
     source.previewUrl = url;
-    const controller = native.QLPreviewController.new();
+    const controller = QLPreviewController.new();
     controller.dataSource = source;
     activePreviewDataSources.push(source);
     controller.reloadData();

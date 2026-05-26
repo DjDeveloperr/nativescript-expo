@@ -18,8 +18,8 @@ const notificationTypes: Record<NotificationHapticType, number> = {
 };
 
 export async function impact(style: ImpactHapticStyle = 'medium') {
-  await runOnUIKit((native) => {
-    const generator = native.UIImpactFeedbackGenerator.alloc().initWithStyle(
+  await runOnUIKit(() => {
+    const generator = UIImpactFeedbackGenerator.alloc().initWithStyle(
       impactStyles[style],
     );
     generator.prepare();
@@ -28,16 +28,16 @@ export async function impact(style: ImpactHapticStyle = 'medium') {
 }
 
 export async function selectionChanged() {
-  await runOnUIKit((native) => {
-    const generator = native.UISelectionFeedbackGenerator.new();
+  await runOnUIKit(() => {
+    const generator = UISelectionFeedbackGenerator.new();
     generator.prepare();
     generator.selectionChanged();
   });
 }
 
 export async function notification(type: NotificationHapticType) {
-  await runOnUIKit((native) => {
-    const generator = native.UINotificationFeedbackGenerator.new();
+  await runOnUIKit(() => {
+    const generator = UINotificationFeedbackGenerator.new();
     generator.prepare();
     generator.notificationOccurred(notificationTypes[type]);
   });

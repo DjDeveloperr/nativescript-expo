@@ -10,10 +10,10 @@ export async function openAppleWalletAddPassFlow(options: AddPassOptions) {
     throw new Error('A signed .pkpass file encoded as base64 is required.');
   }
 
-  await presentNativeViewController((native) => {
-    loadSystemFramework(native, 'PassKit');
+  await presentNativeViewController(() => {
+    loadSystemFramework('PassKit');
 
-    const passData = native.NSData.alloc().initWithBase64EncodedStringOptions(
+    const passData = NSData.alloc().initWithBase64EncodedStringOptions(
       options.base64PassData,
       0,
     );
@@ -22,14 +22,14 @@ export async function openAppleWalletAddPassFlow(options: AddPassOptions) {
       throw new Error('The provided pass data is not valid base64.');
     }
 
-    const errorRef = new native.interop.Reference();
-    const pass = native.PKPass.alloc().initWithDataError(passData, errorRef);
+    const errorRef = new interop.Reference();
+    const pass = PKPass.alloc().initWithDataError(passData, errorRef);
 
     if (!pass) {
       throw new Error('PassKit could not parse this .pkpass payload.');
     }
 
-    const controller = native.PKAddPassesViewController.alloc().initWithPass(
+    const controller = PKAddPassesViewController.alloc().initWithPass(
       pass,
     );
 
