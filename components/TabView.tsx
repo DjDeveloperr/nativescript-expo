@@ -2,6 +2,7 @@ import { ReactNode, useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { NativeTabBar } from '../utils/native-tabs';
 import { selectionChanged } from '../utils/haptics';
+import { colors } from '../utils/colors';
 
 export type TabViewItem = {
   key: string;
@@ -51,13 +52,13 @@ export function TabView({ tabs }: TabViewProps) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.appBackground,
   },
   content: {
     flex: 1,
   },
   nativeTabBar: {
-    backgroundColor: 'transparent',
+    backgroundColor: colors.transparent,
     bottom: 0,
     height: 88,
     left: 0,

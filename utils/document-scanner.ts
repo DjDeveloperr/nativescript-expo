@@ -36,23 +36,6 @@ function getDocumentCameraController(native: typeof globalThis & Record<string, 
     throw new Error('VisionKit document scanner is not available on this OS.');
   }
 
-  let supported = false;
-
-  try {
-    supported =
-      typeof Controller.supported === 'boolean'
-        ? Controller.supported
-        : typeof Controller.isSupported === 'function'
-          ? Controller.isSupported()
-          : false;
-  } catch (error) {
-    throw new Error(`VisionKit support check failed: ${describeNativeError(error)}`);
-  }
-
-  if (!supported) {
-    throw new Error('VisionKit document scanner is not supported here.');
-  }
-
   return Controller;
 }
 
@@ -116,24 +99,38 @@ function registerScannerDelegate(
 }
 
 export async function isDocumentScannerAvailable() {
-  return runOnUIKit((native) => {
-    try {
-      getDocumentCameraController(native);
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  try {
+    return await runOnUIKit((native) => {
+      try {
+        getDocumentCameraController(native);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
 }
 
 export async function openDocumentScanner() {
+  const available = await isDocumentScannerAvailable();
+
+  if (!available) {
+    throw new Error('VisionKit document scanner is not available on this device.');
+  }
+
   return new Promise<DocumentScanResult>((resolve, reject) => {
     presentNativeViewController((native) => {
-      const Controller = getDocumentCameraController(native);
-      const controller = Controller.new();
-      controller.delegate = registerScannerDelegate(native, resolve, reject);
+      try {
+        const Controller = getDocumentCameraController(native);
+        const controller = Controller.new();
+        controller.delegate = registerScannerDelegate(native, resolve, reject);
 
-      return controller;
+        return controller;
+      } catch (error) {
+        throw new Error(describeNativeError(error));
+      }
     }).catch(reject);
   });
 }

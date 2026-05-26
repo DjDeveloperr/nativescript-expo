@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { colors } from '../utils/colors';
 
 type DemoScreenProps = {
   title: string;
@@ -8,6 +9,7 @@ type DemoScreenProps = {
 };
 
 type DemoButtonProps = {
+  disabled?: boolean;
   title: string;
   onPress: () => void;
 };
@@ -28,10 +30,17 @@ export function DemoScreen({ title, eyebrow, children }: DemoScreenProps) {
   );
 }
 
-export function DemoButton({ title, onPress }: DemoButtonProps) {
+export function DemoButton({ disabled = false, title, onPress }: DemoButtonProps) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.button}>
-      <Text style={styles.buttonText}>{title}</Text>
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.button, disabled && styles.buttonDisabled]}
+    >
+      <Text style={[styles.buttonText, disabled && styles.buttonTextDisabled]}>
+        {title}
+      </Text>
     </Pressable>
   );
 }
@@ -60,39 +69,45 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   eyebrow: {
-    color: '#64748b',
+    color: colors.label,
     fontSize: 13,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
   title: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 34,
     fontWeight: '800',
     letterSpacing: 0,
   },
   button: {
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: colors.buttonBackground,
     borderRadius: 8,
     minHeight: 52,
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
+  buttonDisabled: {
+    backgroundColor: colors.buttonDisabledBackground,
+  },
   buttonText: {
-    color: '#fff',
+    color: colors.buttonText,
     fontSize: 16,
     fontWeight: '700',
   },
+  buttonTextDisabled: {
+    color: colors.buttonDisabledText,
+  },
   status: {
-    backgroundColor: '#ffffff',
-    borderColor: '#e5e7eb',
+    backgroundColor: colors.panel,
+    borderColor: colors.hairline,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 16,
   },
   statusText: {
-    color: '#334155',
+    color: colors.textSecondary,
     fontSize: 15,
     lineHeight: 22,
   },
