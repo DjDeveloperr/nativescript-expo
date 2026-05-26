@@ -47,15 +47,13 @@ function writeManifest() {
 
 function makeArtwork() {
   const sourceIcon = path.join(root, 'assets', 'icon.png');
-  const outputs = [
+  const iconOutputs = [
     ['icon.png', 29],
     ['icon@2x.png', 58],
     ['icon@3x.png', 87],
-    ['logo.png', 160],
-    ['logo@2x.png', 320],
   ];
 
-  for (const [name, size] of outputs) {
+  for (const [name, size] of iconOutputs) {
     const destination = path.join(bundleDir, name);
     const result = spawnSync(
       'sips',
@@ -66,6 +64,42 @@ function makeArtwork() {
     if (result.status !== 0) {
       copyFile(sourceIcon, destination);
     }
+  }
+
+  const sourceLogo = path.join(sourceDir, 'expo-logo.svg');
+  const tempLogoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nativescriptrn-logo-'));
+  const renderedLogo = path.join(tempLogoDir, 'expo-logo.svg.png');
+  const logoOutputs = [
+    ['logo.png', 40],
+    ['logo@2x.png', 80],
+    ['logo@3x.png', 120],
+  ];
+
+  try {
+    const renderResult = spawnSync(
+      'qlmanage',
+      ['-t', '-s', '512', '-o', tempLogoDir, sourceLogo],
+      { encoding: 'utf8' },
+    );
+    const logoSource =
+      renderResult.status === 0 && fs.existsSync(renderedLogo)
+        ? renderedLogo
+        : sourceIcon;
+
+    for (const [name, size] of logoOutputs) {
+      const destination = path.join(bundleDir, name);
+      const result = spawnSync(
+        'sips',
+        ['-z', String(size), String(size), logoSource, '--out', destination],
+        { encoding: 'utf8' },
+      );
+
+      if (result.status !== 0) {
+        copyFile(logoSource, destination);
+      }
+    }
+  } finally {
+    rmrf(tempLogoDir);
   }
 }
 

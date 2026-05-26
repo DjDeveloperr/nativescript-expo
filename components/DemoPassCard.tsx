@@ -1,5 +1,7 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { demoPass } from '../utils/demo-pass';
+
+const expoLogo = require('../assets/demo-pass/expo-logo-preview.png');
 
 export function DemoPassCard() {
   const [primary] = demoPass.storeCard.primaryFields;
@@ -9,7 +11,10 @@ export function DemoPassCard() {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.logo}>{demoPass.logoText}</Text>
+        <View style={styles.logoGroup}>
+          <Image source={expoLogo} style={styles.logoImage} />
+          <Text style={styles.logo}>{demoPass.logoText}</Text>
+        </View>
         <Text style={styles.badge}>DEMO</Text>
       </View>
       <View style={styles.primary}>
@@ -49,6 +54,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  logoGroup: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 10,
+    paddingRight: 12,
+  },
+  logoImage: {
+    borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 36,
+    width: 36,
   },
   logo: {
     color: '#fff',

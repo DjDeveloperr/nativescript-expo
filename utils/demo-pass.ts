@@ -3,9 +3,9 @@ export const demoPass = {
   passTypeIdentifier: 'pass.com.djdev.NativeScriptRN.demo',
   serialNumber: 'NSRN-DEMO-0001',
   teamIdentifier: 'B55DTZ6VSU',
-  organizationName: 'NativeScriptRN',
-  description: 'NativeScriptRN Demo Pass',
-  logoText: 'NativeScriptRN',
+  organizationName: 'NativeScript Expo',
+  description: 'NativeScript Expo Pass',
+  logoText: 'NativeScript Expo',
   foregroundColor: 'rgb(255,255,255)',
   backgroundColor: 'rgb(17,24,39)',
   labelColor: 'rgb(203,213,225)',
@@ -18,8 +18,8 @@ export const demoPass = {
     primaryFields: [
       {
         key: 'demo',
-        label: 'Native Bridge',
-        value: 'UIKit + PassKit',
+        label: 'Title',
+        value: 'NativeScript Expo Pass',
       },
     ],
     secondaryFields: [
@@ -31,7 +31,7 @@ export const demoPass = {
       {
         key: 'level',
         label: 'Level',
-        value: 'Demo',
+        value: 'App.js Conf',
       },
     ],
     auxiliaryFields: [
