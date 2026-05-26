@@ -55,6 +55,16 @@ function getDocumentCameraController(
   return Controller;
 }
 
+function createDocumentCameraController(Controller: any) {
+  return withNativeStep('controller creation', () => {
+    if (typeof Controller.alloc === 'function') {
+      return Controller.alloc().init();
+    }
+
+    return Controller.new();
+  });
+}
+
 function getDocumentCameraDelegateProtocol(native: Record<string, any>) {
   try {
     const generatedProtocol = nativeValue(
@@ -153,7 +163,7 @@ export async function isDocumentScannerAvailable() {
     const available = await runOnUIKit((native) => {
       try {
         const Controller = getDocumentCameraController(native);
-        withNativeStep('controller creation', () => Controller.new());
+        createDocumentCameraController(Controller);
         registerScannerDelegate(
           native,
           () => {},
@@ -188,9 +198,7 @@ export async function openDocumentScanner() {
     presentNativeViewController((native) => {
       try {
         const Controller = getDocumentCameraController(native);
-        const controller = withNativeStep('controller creation', () =>
-          Controller.new(),
-        );
+        const controller = createDocumentCameraController(Controller);
         const delegate = registerScannerDelegate(native, resolve, reject);
         withNativeStep('delegate assignment', () => {
           controller.delegate = delegate;
