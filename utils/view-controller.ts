@@ -2,6 +2,11 @@ import { runOnUIKit } from './native-script';
 
 type NativeGlobals = typeof globalThis & Record<string, any>;
 
+function nativeBool(target: any, key: string) {
+  const value = target?.[key];
+  return typeof value === 'function' ? Boolean(value.call(target)) : Boolean(value);
+}
+
 function visibleViewController(native: NativeGlobals) {
   const application = native.UIApplication.sharedApplication;
   const root = application.keyWindow?.rootViewController;
@@ -13,7 +18,13 @@ function visibleViewController(native: NativeGlobals) {
   let current = root;
 
   while (current.presentedViewController) {
-    current = current.presentedViewController;
+    const presented = current.presentedViewController;
+
+    if (nativeBool(presented, 'isBeingDismissed')) {
+      break;
+    }
+
+    current = presented;
   }
 
   if (current.visibleViewController) {
@@ -27,18 +38,39 @@ function visibleViewController(native: NativeGlobals) {
   return current;
 }
 
+function delay(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 export async function presentNativeViewController(
   makeViewController: (native: NativeGlobals) => any,
 ) {
-  await runOnUIKit((native) => {
-    const presenter = visibleViewController(native);
-    const viewController = makeViewController(native);
-    presenter.presentViewControllerAnimatedCompletion(
-      viewController,
-      true,
-      null,
-    );
-  });
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const result = await runOnUIKit((native) => {
+      const presenter = visibleViewController(native);
+
+      if (presenter.presentedViewController) {
+        return false;
+      }
+
+      const viewController = makeViewController(native);
+      presenter.presentViewControllerAnimatedCompletion(
+        viewController,
+        true,
+        null,
+      );
+
+      return true;
+    });
+
+    if (result) {
+      return;
+    }
+
+    await delay(80);
+  }
+
+  throw new Error('The previous native sheet is still closing.');
 }
 
 export async function dismissNativeViewController(viewController: any) {

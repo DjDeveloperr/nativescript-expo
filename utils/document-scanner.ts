@@ -9,6 +9,24 @@ export type DocumentScanResult = {
 let scannerDelegateClass: any;
 let activeScannerDelegate: any;
 
+function describeNativeError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === 'object') {
+    const nativeError = error as Record<string, unknown>;
+    if (typeof nativeError.localizedDescription === 'string') {
+      return nativeError.localizedDescription;
+    }
+    if (typeof nativeError.message === 'string') {
+      return nativeError.message;
+    }
+  }
+
+  return String(error);
+}
+
 function getDocumentCameraController(native: typeof globalThis & Record<string, any>) {
   loadSystemFramework(native, 'VisionKit');
 
@@ -18,7 +36,20 @@ function getDocumentCameraController(native: typeof globalThis & Record<string, 
     throw new Error('VisionKit document scanner is not available on this OS.');
   }
 
-  if (typeof Controller.isSupported !== 'function' || !Controller.isSupported()) {
+  let supported = false;
+
+  try {
+    supported =
+      typeof Controller.supported === 'boolean'
+        ? Controller.supported
+        : typeof Controller.isSupported === 'function'
+          ? Controller.isSupported()
+          : false;
+  } catch (error) {
+    throw new Error(`VisionKit support check failed: ${describeNativeError(error)}`);
+  }
+
+  if (!supported) {
     throw new Error('VisionKit document scanner is not supported here.');
   }
 
@@ -31,6 +62,10 @@ function registerScannerDelegate(
   reject: (error: Error) => void,
 ) {
   if (!scannerDelegateClass) {
+    if (!native.VNDocumentCameraViewControllerDelegate) {
+      throw new Error('VisionKit scanner delegate protocol is not available.');
+    }
+
     scannerDelegateClass = native.NSObject.extend(
       {
       documentCameraViewControllerDidFinishWithScan(controller: any, scan: any) {
@@ -47,9 +82,7 @@ function registerScannerDelegate(
       },
       {
         name: `NativeScriptRNDocumentScannerDelegate${Date.now()}`,
-        protocols: native.VNDocumentCameraViewControllerDelegate
-          ? [native.VNDocumentCameraViewControllerDelegate]
-          : [],
+        protocols: [native.VNDocumentCameraViewControllerDelegate],
       },
     );
   }
