@@ -1,20 +1,38 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { TabView } from './components/TabView';
+import { DocumentScannerTab } from './components/DocumentScannerTab';
+import { PDFViewerTab } from './components/PDFViewerTab';
+import { WalletPassTab } from './components/WalletPassTab';
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
+    <>
+      <TabView
+        tabs={[
+          {
+            key: 'wallet',
+            title: 'Wallet',
+            systemImage: 'wallet.pass',
+            selectedSystemImage: 'wallet.pass.fill',
+            content: <WalletPassTab />,
+          },
+          {
+            key: 'pdf',
+            title: 'PDF',
+            systemImage: 'doc.richtext',
+            selectedSystemImage: 'doc.richtext',
+            content: <PDFViewerTab />,
+          },
+          {
+            key: 'scanner',
+            title: 'Scanner',
+            systemImage: 'doc.viewfinder',
+            selectedSystemImage: 'doc.viewfinder',
+            content: <DocumentScannerTab />,
+          },
+        ]}
+      />
       <StatusBar style="auto" />
-    </View>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
