@@ -4,7 +4,7 @@
   "serialNumber": "NSRN-DEMO-0001",
   "teamIdentifier": "B55DTZ6VSU",
   "organizationName": "NativeScript Expo",
-  "description": "NativeScript Expo Pass",
+  "description": "NativeScript App.js Pass",
   "logoText": "NativeScript Expo",
   "foregroundColor": "rgb(255,255,255)",
   "backgroundColor": "rgb(17,24,39)",
@@ -18,8 +18,8 @@
     "primaryFields": [
       {
         "key": "demo",
-        "label": "Title",
-        "value": "NativeScript Expo Pass"
+        "label": "",
+        "value": "NativeScript App.js Pass"
       }
     ],
     "secondaryFields": [

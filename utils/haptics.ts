@@ -1,4 +1,4 @@
-import { runOnUIKit } from './native-script';
+import { runOnUIKit } from './ns';
 
 export type ImpactHapticStyle = 'light' | 'medium' | 'heavy' | 'soft' | 'rigid';
 export type NotificationHapticType = 'success' | 'warning' | 'error';

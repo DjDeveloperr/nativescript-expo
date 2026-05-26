@@ -1,5 +1,5 @@
 import { presentNativeViewController } from './view-controller';
-import { loadSystemFramework } from './native-script';
+import { loadSystemFramework } from './ns';
 
 export type AddPassOptions = {
   base64PassData: string;

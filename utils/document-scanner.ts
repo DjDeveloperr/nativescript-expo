@@ -1,5 +1,11 @@
-import { presentNativeViewController } from './view-controller';
-import { loadSystemFramework, runOnUIKit } from './native-script';
+import { presentNativeViewController } from "./view-controller";
+import {
+  loadSystemFramework,
+  runOnUIKit,
+  nativeGlobals,
+  defineObjCClass,
+  type ObjCClass,
+} from "./ns";
 
 export type DocumentScanResult = {
   filePath: string;
@@ -7,8 +13,32 @@ export type DocumentScanResult = {
   title: string;
 };
 
-let scannerDelegateClass: any;
-let activeScannerDelegate: any;
+/** Delegate subclass instance that bridges VisionKit scan callbacks to JS. */
+type ScannerDelegate = NSObject & {
+  onDone?: (
+    scan: VNDocumentCameraScan,
+    controller: VNDocumentCameraViewController,
+  ) => void;
+  onCancel?: (controller: VNDocumentCameraViewController) => void;
+  onError?: (
+    error: NSError,
+    controller: VNDocumentCameraViewController,
+  ) => void;
+  documentCameraViewControllerDidFinishWithScan(
+    controller: VNDocumentCameraViewController,
+    scan: VNDocumentCameraScan,
+  ): void;
+  documentCameraViewControllerDidCancel(
+    controller: VNDocumentCameraViewController,
+  ): void;
+  documentCameraViewControllerDidFailWithError(
+    controller: VNDocumentCameraViewController,
+    error: NSError,
+  ): void;
+};
+
+let scannerDelegateClass: ObjCClass<ScannerDelegate> | undefined;
+let activeScannerDelegate: ScannerDelegate | undefined;
 
 function withNativeStep<T>(step: string, work: () => T) {
   try {
@@ -23,12 +53,12 @@ function describeNativeError(error: unknown) {
     return error.message;
   }
 
-  if (error && typeof error === 'object') {
+  if (error && typeof error === "object") {
     const nativeError = error as Record<string, unknown>;
-    if (typeof nativeError.localizedDescription === 'string') {
+    if (typeof nativeError.localizedDescription === "string") {
       return nativeError.localizedDescription;
     }
-    if (typeof nativeError.message === 'string') {
+    if (typeof nativeError.message === "string") {
       return nativeError.message;
     }
   }
@@ -36,29 +66,27 @@ function describeNativeError(error: unknown) {
   return String(error);
 }
 
-function nativeValue(native: Record<string, any>, key: string) {
-  return withNativeStep(`${key} lookup`, () => native[key]);
+function nativeValue(key: string) {
+  return withNativeStep(`${key} lookup`, () => nativeGlobals()[key]);
 }
 
-function getDocumentCameraController(
-  native: typeof globalThis & Record<string, any>,
-) {
-  withNativeStep('framework load', () =>
-    loadSystemFramework(native, 'VisionKit'),
+function getDocumentCameraController() {
+  withNativeStep("framework load", () =>
+    loadSystemFramework("VisionKit"),
   );
 
-  const Controller = nativeValue(native, 'VNDocumentCameraViewController');
+  const Controller = nativeValue( "VNDocumentCameraViewController");
 
   if (!Controller) {
-    throw new Error('VisionKit document scanner is not available on this OS.');
+    throw new Error("VisionKit document scanner is not available on this OS.");
   }
 
   return Controller;
 }
 
 function createDocumentCameraController(Controller: any) {
-  return withNativeStep('controller creation', () => {
-    if (typeof Controller.alloc === 'function') {
+  return withNativeStep("controller creation", () => {
+    if (typeof Controller.alloc === "function") {
       return Controller.alloc().init();
     }
 
@@ -66,15 +94,15 @@ function createDocumentCameraController(Controller: any) {
   });
 }
 
-function writeScanToPDF(native: Record<string, any>, scan: any) {
+function writeScanToPDF(scan: any) {
   const pageCount = Number(scan.pageCount ?? 0);
-  const path = `${native.NSTemporaryDirectory()}nativescript-rn-scan-${Date.now()}.pdf`;
+  const path = `${NSTemporaryDirectory()}nativescript-rn-scan-${Date.now()}.pdf`;
   const defaultBounds = {
     origin: { x: 0, y: 0 },
     size: { width: 612, height: 792 },
   };
 
-  native.UIGraphicsBeginPDFContextToFile(path, defaultBounds, {});
+  UIGraphicsBeginPDFContextToFile(path, defaultBounds, {});
 
   for (let index = 0; index < pageCount; index += 1) {
     const image = scan.imageOfPageAtIndex(index);
@@ -84,19 +112,18 @@ function writeScanToPDF(native: Record<string, any>, scan: any) {
       size,
     };
 
-    native.UIGraphicsBeginPDFPageWithInfo(bounds, {});
+    UIGraphicsBeginPDFPageWithInfo(bounds, {});
     image.drawInRect(bounds);
   }
 
-  native.UIGraphicsEndPDFContext();
+  UIGraphicsEndPDFContext();
   return path;
 }
 
-function getDocumentCameraDelegateProtocol(native: Record<string, any>) {
+function getDocumentCameraDelegateProtocol() {
   try {
     const generatedProtocol = nativeValue(
-      native,
-      'VNDocumentCameraViewControllerDelegate',
+      "VNDocumentCameraViewControllerDelegate",
     );
 
     if (generatedProtocol) {
@@ -106,42 +133,37 @@ function getDocumentCameraDelegateProtocol(native: Record<string, any>) {
     // Some device builds throw while reading generated protocol globals.
   }
 
-  return withNativeStep('delegate protocol lookup', () =>
-    native.NSProtocolFromString?.('VNDocumentCameraViewControllerDelegate') ??
-    native.objc_getProtocol?.('VNDocumentCameraViewControllerDelegate'),
+  return withNativeStep(
+    "delegate protocol lookup",
+    () =>
+      NSProtocolFromString?.("VNDocumentCameraViewControllerDelegate") ??
+      objc_getProtocol?.("VNDocumentCameraViewControllerDelegate"),
   );
 }
 
 function registerScannerDelegate(
-  native: Record<string, any>,
   resolve: (result: DocumentScanResult) => void,
   reject: (error: Error) => void,
 ) {
   if (!scannerDelegateClass) {
-    const delegateProtocol = getDocumentCameraDelegateProtocol(native);
+    const delegateProtocol = getDocumentCameraDelegateProtocol();
 
     if (!delegateProtocol) {
-      throw new Error('VisionKit scanner delegate protocol is not available.');
+      throw new Error("VisionKit scanner delegate protocol is not available.");
     }
 
-    scannerDelegateClass = withNativeStep('delegate registration', () =>
-      native.NSObject.extend(
+    scannerDelegateClass = withNativeStep("delegate registration", () =>
+      defineObjCClass<ScannerDelegate>(
         {
-          documentCameraViewControllerDidFinishWithScan(
-            controller: any,
-            scan: any,
-          ) {
+          documentCameraViewControllerDidFinishWithScan(controller, scan) {
             this.onDone?.(scan, controller);
           },
 
-          documentCameraViewControllerDidCancel(controller: any) {
+          documentCameraViewControllerDidCancel(controller) {
             this.onCancel?.(controller);
           },
 
-          documentCameraViewControllerDidFailWithError(
-            controller: any,
-            error: any,
-          ) {
+          documentCameraViewControllerDidFailWithError(controller, error) {
             this.onError?.(error, controller);
           },
         },
@@ -153,22 +175,23 @@ function registerScannerDelegate(
     );
   }
 
-  const delegate = withNativeStep('delegate creation', () =>
-    scannerDelegateClass.new(),
+  const delegateClass = scannerDelegateClass;
+  const delegate = withNativeStep("delegate creation", () =>
+    delegateClass.new(),
   );
 
-  delegate.onDone = (scan: any, controller: any) => {
+  delegate.onDone = (scan, controller) => {
     completeScan(scan, controller).then(resolve).catch(reject);
   };
 
-  delegate.onCancel = (controller: any) => {
+  delegate.onCancel = (controller) => {
     dismissScan(controller)
       .catch(() => {})
-      .finally(() => reject(new Error('Document scan cancelled.')));
+      .finally(() => reject(new Error("Document scan cancelled.")));
   };
 
-  delegate.onError = (error: any, controller: any) => {
-    const message = error?.localizedDescription ?? 'Document scan failed.';
+  delegate.onError = (error, controller) => {
+    const message = error?.localizedDescription ?? "Document scan failed.";
     dismissScan(controller)
       .catch(() => {})
       .finally(() => reject(new Error(message)));
@@ -179,12 +202,12 @@ function registerScannerDelegate(
 }
 
 async function completeScan(scan: any, controller: any) {
-  return runOnUIKit((native) => {
+  return runOnUIKit(() => {
     const pageCount = Number(scan.pageCount ?? 0);
     const result = {
-      filePath: writeScanToPDF(native, scan),
+      filePath: writeScanToPDF(scan),
       pageCount,
-      title: scan.title ?? 'Document scan',
+      title: scan.title ?? "Document scan",
     };
     controller.dismissViewControllerAnimatedCompletion(true, null);
     activeScannerDelegate = undefined;
@@ -203,12 +226,11 @@ export async function isDocumentScannerAvailable() {
   let unavailableReason: unknown;
 
   try {
-    const available = await runOnUIKit((native) => {
+    const available = await runOnUIKit(() => {
       try {
-        const Controller = getDocumentCameraController(native);
+        const Controller = getDocumentCameraController();
         createDocumentCameraController(Controller);
         registerScannerDelegate(
-          native,
           () => {},
           () => {},
         );
@@ -234,16 +256,18 @@ export async function openDocumentScanner() {
   const available = await isDocumentScannerAvailable();
 
   if (!available) {
-    throw new Error('VisionKit document scanner is not available on this device.');
+    throw new Error(
+      "VisionKit document scanner is not available on this device.",
+    );
   }
 
   return new Promise<DocumentScanResult>((resolve, reject) => {
-    presentNativeViewController((native) => {
+    presentNativeViewController(() => {
       try {
-        const Controller = getDocumentCameraController(native);
+        const Controller = getDocumentCameraController();
         const controller = createDocumentCameraController(Controller);
-        const delegate = registerScannerDelegate(native, resolve, reject);
-        withNativeStep('delegate assignment', () => {
+        const delegate = registerScannerDelegate(resolve, reject);
+        withNativeStep("delegate assignment", () => {
           controller.delegate = delegate;
         });
 

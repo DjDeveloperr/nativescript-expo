@@ -1,4 +1,4 @@
-import { runOnUIKit } from './native-script';
+import { runOnUIKit } from './ns';
 
 function nativeBool(target: any, key: string) {
   const value = target?.[key];

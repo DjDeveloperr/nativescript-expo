@@ -1,3 +1,4 @@
+import { StyleSheet } from 'react-native';
 import { NativeTabBarAccessoryButton } from '../utils/native-tabs';
 import { notification, selectionChanged } from '../utils/haptics';
 import { openAppleWalletAddPassFlow } from '../utils/passkit';
@@ -19,8 +20,15 @@ export function WalletAddPassAccessory() {
   return (
     <NativeTabBarAccessoryButton
       systemImage="plus.circle.fill"
-      title="Add Demo Pass"
+      title="Add Pass"
       onPress={handleOpenWallet}
+      style={styles.button}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  button: {
+    flex: 1,
+  },
+});

@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
   accessory: {
-    bottom: 88,
+    bottom: 104,
     height: 54,
     left: 22,
     position: 'absolute',

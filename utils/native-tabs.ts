@@ -1,4 +1,5 @@
 import NativeScript, { defineUIKitView } from '@nativescript/react-native';
+import { defineObjCClass } from './ns';
 
 export type NativeTabItem = {
   title: string;
@@ -18,12 +19,43 @@ type NativeTabBarAccessoryButtonProps = {
   onPress: () => void;
 };
 
-const nativeScriptReady = NativeScript.init();
-const nativeRetainers: any[] = [];
+/** `UITabBar` augmented with the JS state we stash on each instance. */
+type TabBarWithState = UITabBar & {
+  nativeOnSelect?: (index: number) => void;
+  nativeTabTitles?: string[];
+  nativeTabBarDelegate?: NSObject;
+  // Available since iOS 15 but absent from the generated `UITabBar` typings.
+  scrollEdgeAppearance?: UITabBarAppearance;
+};
 
-const NativeTabBarDelegate = (NSObject as any).extend(
+/** `UITabBarItem` augmented with its resolved index. */
+type TabBarItemWithIndex = UITabBarItem & {
+  nativeIndex?: number;
+};
+
+/** `UIButton` augmented with the accessory press handler and its target. */
+type AccessoryButtonWithState = UIButton & {
+  nativeOnPress?: () => void;
+  nativeAccessoryTarget?: AccessoryButtonTarget;
+};
+
+/** Delegate subclass instance that forwards tab selection back to JS. */
+type TabBarDelegate = NSObject & {
+  tabBarDidSelectItem(tabBar: TabBarWithState, item: TabBarItemWithIndex): void;
+};
+
+/** Target subclass instance that forwards accessory button taps back to JS. */
+type AccessoryButtonTarget = NSObject & {
+  nativeOnPress?: () => void;
+  accessoryButtonPressed(): void;
+};
+
+const nativeScriptReady = NativeScript.init();
+const nativeRetainers: NSObject[] = [];
+
+const TabBarDelegateClass = defineObjCClass<TabBarDelegate>(
   {
-    tabBarDidSelectItem(tabBar: any, item: any) {
+    tabBarDidSelectItem(tabBar, item) {
       const title = item.title || 'Tab';
       const index =
         typeof item.nativeIndex === 'number'
@@ -44,7 +76,7 @@ const NativeTabBarDelegate = (NSObject as any).extend(
   },
 );
 
-const NativeAccessoryButtonTarget = (NSObject as any).extend(
+const AccessoryButtonTargetClass = defineObjCClass<AccessoryButtonTarget>(
   {
     accessoryButtonPressed() {
       this.nativeOnPress?.();
@@ -52,6 +84,10 @@ const NativeAccessoryButtonTarget = (NSObject as any).extend(
   },
   {
     name: `NativeScriptRNTabBarAccessoryTarget${Date.now()}`,
+    // Custom target-action selector: allows connection to UIControl
+    exposedMethods: {
+      accessoryButtonPressed: { returns: interop.types.void, params: [] },
+    },
   },
 );
 
@@ -65,15 +101,15 @@ function createNativeItems(items: NativeTabItem[]) {
       item.title,
       image,
       selectedImage,
-    );
+    ) as TabBarItemWithIndex;
     tabItem.tag = index;
-    (tabItem as UITabBarItem & { nativeIndex?: number }).nativeIndex = index;
+    tabItem.nativeIndex = index;
     return tabItem;
   });
 }
 
 function configureAccessoryButton(
-  button: UIButton & { nativeOnPress?: () => void },
+  button: AccessoryButtonWithState,
   props: NativeTabBarAccessoryButtonProps,
 ) {
   const image = UIImage.systemImageNamed(props.systemImage);
@@ -87,23 +123,30 @@ function configureAccessoryButton(
   button.titleLabel.font = UIFont.boldSystemFontOfSize(17);
   button.contentEdgeInsets = { top: 0, left: 18, bottom: 0, right: 20 };
   button.imageEdgeInsets = { top: 0, left: -4, bottom: 0, right: 8 };
-  button.layer.cornerRadius = 24;
+  button.layer.cornerRadius = 27;
   button.clipsToBounds = true;
   button.accessibilityLabel = props.title;
 }
 
-export const NativeTabBar = defineUIKitView<NativeTabBarProps, UITabBar>({
+function releaseRetainer(retainer: NSObject | undefined) {
+  if (!retainer) {
+    return;
+  }
+
+  const index = nativeRetainers.indexOf(retainer);
+  if (index >= 0) {
+    nativeRetainers.splice(index, 1);
+  }
+}
+
+export const NativeTabBar = defineUIKitView<NativeTabBarProps, TabBarWithState>({
   name: 'NativeTabBar',
   create(props) {
     if (!nativeScriptReady) {
       throw new Error('NativeScript Native API is not ready.');
     }
 
-    const tabBar = UITabBar.alloc().initWithFrame(CGRectZero);
-    const tabBarState = tabBar as UITabBar & {
-      nativeOnSelect?: (index: number) => void;
-      nativeTabBarDelegate?: unknown;
-    };
+    const tabBar = UITabBar.alloc().initWithFrame(CGRectZero) as TabBarWithState;
     tabBar.autoresizingMask =
       UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
     tabBar.accessibilityIdentifier = 'native-uikit-tab-bar';
@@ -117,11 +160,10 @@ export const NativeTabBar = defineUIKitView<NativeTabBarProps, UITabBar>({
       const appearance = UITabBarAppearance.new();
       appearance.configureWithDefaultBackground();
       tabBar.standardAppearance = appearance;
-      (tabBar as UITabBar & { scrollEdgeAppearance?: UITabBarAppearance })
-        .scrollEdgeAppearance = appearance;
+      tabBar.scrollEdgeAppearance = appearance;
     }
-    tabBarState.nativeOnSelect = props.onSelect;
-    (tabBarState as any).nativeTabTitles = props.items.map((item) => item.title);
+    tabBar.nativeOnSelect = props.onSelect;
+    tabBar.nativeTabTitles = props.items.map((item) => item.title);
 
     const items = createNativeItems(props.items);
     tabBar.setItemsAnimated(items, false);
@@ -129,20 +171,16 @@ export const NativeTabBar = defineUIKitView<NativeTabBarProps, UITabBar>({
     tabBar.accessibilityValue =
       `${props.items[props.selectedIndex]?.title ?? 'Tab'} selected`;
 
-    const delegate = NativeTabBarDelegate.new();
+    const delegate = TabBarDelegateClass.new();
     nativeRetainers.push(delegate);
     tabBar.delegate = delegate;
-    tabBarState.nativeTabBarDelegate = delegate;
+    tabBar.nativeTabBarDelegate = delegate;
 
     return tabBar;
   },
   update(tabBar, props) {
-    const tabBarState = tabBar as UITabBar & {
-      nativeOnSelect?: (index: number) => void;
-      nativeTabBarDelegate?: unknown;
-    };
-    tabBarState.nativeOnSelect = props.onSelect;
-    (tabBarState as any).nativeTabTitles = props.items.map((item) => item.title);
+    tabBar.nativeOnSelect = props.onSelect;
+    tabBar.nativeTabTitles = props.items.map((item) => item.title);
     tabBar.accessibilityValue =
       `${props.items[props.selectedIndex]?.title ?? 'Tab'} selected`;
 
@@ -156,19 +194,13 @@ export const NativeTabBar = defineUIKitView<NativeTabBarProps, UITabBar>({
     }
   },
   dispose(tabBar) {
-    const delegate = (tabBar as UITabBar & {
-      nativeTabBarDelegate?: unknown;
-    }).nativeTabBarDelegate;
-    const index = nativeRetainers.indexOf(delegate);
-    if (index >= 0) {
-      nativeRetainers.splice(index, 1);
-    }
+    releaseRetainer(tabBar.nativeTabBarDelegate);
   },
 });
 
 export const NativeTabBarAccessoryButton = defineUIKitView<
   NativeTabBarAccessoryButtonProps,
-  UIButton
+  AccessoryButtonWithState
 >({
   name: 'NativeTabBarAccessoryButton',
   create(props) {
@@ -176,15 +208,14 @@ export const NativeTabBarAccessoryButton = defineUIKitView<
       throw new Error('NativeScript Native API is not ready.');
     }
 
-    const button = UIButton.buttonWithType(UIButtonType.System) as UIButton & {
-      nativeAccessoryTarget?: unknown;
-      nativeOnPress?: () => void;
-    };
+    const button = UIButton.buttonWithType(
+      UIButtonType.System,
+    ) as AccessoryButtonWithState;
     button.autoresizingMask =
       UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
     configureAccessoryButton(button, props);
 
-    const target = NativeAccessoryButtonTarget.new();
+    const target = AccessoryButtonTargetClass.new();
     target.nativeOnPress = props.onPress;
     nativeRetainers.push(target);
     button.nativeAccessoryTarget = target;
@@ -197,22 +228,12 @@ export const NativeTabBarAccessoryButton = defineUIKitView<
     return button;
   },
   update(button, props) {
-    const buttonState = button as UIButton & {
-      nativeAccessoryTarget?: { nativeOnPress?: () => void };
-      nativeOnPress?: () => void;
-    };
-    configureAccessoryButton(buttonState, props);
-    if (buttonState.nativeAccessoryTarget) {
-      buttonState.nativeAccessoryTarget.nativeOnPress = props.onPress;
+    configureAccessoryButton(button, props);
+    if (button.nativeAccessoryTarget) {
+      button.nativeAccessoryTarget.nativeOnPress = props.onPress;
     }
   },
   dispose(button) {
-    const target = (button as UIButton & {
-      nativeAccessoryTarget?: unknown;
-    }).nativeAccessoryTarget;
-    const index = nativeRetainers.indexOf(target);
-    if (index >= 0) {
-      nativeRetainers.splice(index, 1);
-    }
+    releaseRetainer(button.nativeAccessoryTarget);
   },
 });

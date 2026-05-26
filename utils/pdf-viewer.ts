@@ -1,19 +1,22 @@
 import { presentNativeViewController } from "./view-controller";
-import { loadSystemFramework, runOnUIKit } from "./native-script";
+import { defineObjCClass, type ObjCClass, loadSystemFramework, runOnUIKit } from "./ns";
 
-type QLPreviewControllerDataSourceWithUrl = QLPreviewControllerDataSource & {
-  previewUrl: NSURL;
-  new: () => QLPreviewControllerDataSourceWithUrl;
-};
-let previewDataSource: QLPreviewControllerDataSourceWithUrl | null = null;
-let activePreviewDataSources: QLPreviewControllerDataSourceWithUrl[] = [];
+type PreviewItemURL = NSURL & QLPreviewItem;
 
-function registerPreviewDataSource(): QLPreviewControllerDataSourceWithUrl {
-  if (previewDataSource) {
-    return previewDataSource;
+type PreviewDataSource = NSObject &
+  QLPreviewControllerDataSource & {
+    previewUrl: PreviewItemURL;
+  };
+
+let previewDataSourceClass: ObjCClass<PreviewDataSource> | null = null;
+let activePreviewDataSources: PreviewDataSource[] = [];
+
+function registerPreviewDataSource(): ObjCClass<PreviewDataSource> {
+  if (previewDataSourceClass) {
+    return previewDataSourceClass;
   }
 
-  previewDataSource = (NSObject as any).extend(
+  previewDataSourceClass = defineObjCClass<PreviewDataSource>(
     {
       numberOfPreviewItemsInPreviewController() {
         return 1;
@@ -28,7 +31,7 @@ function registerPreviewDataSource(): QLPreviewControllerDataSourceWithUrl {
       protocols: [QLPreviewControllerDataSource],
     },
   );
-  return previewDataSource as QLPreviewControllerDataSourceWithUrl;
+  return previewDataSourceClass;
 }
 
 export async function createSamplePDF() {
@@ -80,8 +83,8 @@ export async function openNativePDFViewer(filePath?: string) {
 
     const url = NSURL.fileURLWithPath(path);
     const DataSource = registerPreviewDataSource();
-    const source = DataSource.new() as QLPreviewControllerDataSourceWithUrl;
-    source.previewUrl = url;
+    const source = DataSource.new();
+    source.previewUrl = url as PreviewItemURL;
     const controller = QLPreviewController.new();
     controller.dataSource = source;
     activePreviewDataSources.push(source);
