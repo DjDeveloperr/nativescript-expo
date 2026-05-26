@@ -45,16 +45,6 @@ export function DemoButton({ disabled = false, title, onPress }: DemoButtonProps
   );
 }
 
-export function StatusText({ children }: { children: ReactNode }) {
-  return (
-    <View style={styles.status}>
-      <Text selectable style={styles.statusText}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     gap: 18,
@@ -98,17 +88,5 @@ const styles = StyleSheet.create({
   },
   buttonTextDisabled: {
     color: colors.buttonDisabledText,
-  },
-  status: {
-    backgroundColor: colors.panel,
-    borderColor: colors.hairline,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-  },
-  statusText: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
   },
 });

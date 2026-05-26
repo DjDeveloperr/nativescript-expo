@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { DemoButton, DemoScreen, StatusText } from './DemoScreen';
+import { DemoButton, DemoScreen } from './DemoScreen';
 import { notification } from '../utils/haptics';
 import {
   isDocumentScannerAvailable,
@@ -8,38 +8,28 @@ import {
 
 export function DocumentScannerTab() {
   const [available, setAvailable] = useState(false);
-  const [status, setStatus] = useState('Checking VisionKit availability.');
 
   useEffect(() => {
     isDocumentScannerAvailable()
-      .then((available) => {
-        setAvailable(available);
-        setStatus(
-          available
-            ? 'VisionKit document scanner is available.'
-            : 'VisionKit document scanner is not available on this device.',
-        );
-      })
+      .then(setAvailable)
       .catch((error: unknown) => {
         setAvailable(false);
-        setStatus(error instanceof Error ? error.message : String(error));
+        console.log(error);
       });
   }, []);
 
   async function handleScan() {
     if (!available) {
       await notification('warning').catch(() => {});
-      setStatus('VisionKit document scanner is not available on this device.');
       return;
     }
 
     try {
-      const result = await openDocumentScanner();
+      await openDocumentScanner();
       await notification('success');
-      setStatus(`Scanned ${result.pageCount} page(s).`);
     } catch (error) {
       await notification('warning').catch(() => {});
-      setStatus(error instanceof Error ? error.message : String(error));
+      console.log(error);
     }
   }
 
@@ -50,7 +40,6 @@ export function DocumentScannerTab() {
         title={available ? 'Scan Document' : 'Scanner Unavailable'}
         onPress={handleScan}
       />
-      <StatusText>{status}</StatusText>
     </DemoScreen>
   );
 }

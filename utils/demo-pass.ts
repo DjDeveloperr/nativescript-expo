@@ -51,12 +51,3 @@ export const demoPass = {
     ],
   },
 } as const;
-
-export function demoPassStatusText() {
-  return [
-    'Demo pass.json is ready.',
-    `passTypeIdentifier: ${demoPass.passTypeIdentifier}`,
-    `serialNumber: ${demoPass.serialNumber}`,
-    'To add it to Wallet, package it with icons, manifest.json, and a Pass Type ID signature.',
-  ].join('\n');
-}
