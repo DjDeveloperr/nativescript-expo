@@ -9,7 +9,7 @@ function dynamic(light: string, dark: string) {
 }
 
 export const colors = {
-  appBackground: dynamic('#f8fafc', '#020617'),
+  appBackground: dynamic('#f8fafc', '#000000'),
   buttonBackground: dynamic('#111827', '#f8fafc'),
   buttonDisabledBackground: dynamic('#cbd5e1', '#334155'),
   buttonDisabledText: dynamic('#64748b', '#94a3b8'),

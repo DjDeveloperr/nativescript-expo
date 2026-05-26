@@ -2,6 +2,7 @@ import { presentNativeViewController } from './view-controller';
 import { loadSystemFramework, runOnUIKit } from './native-script';
 
 export type DocumentScanResult = {
+  filePath: string;
   pageCount: number;
   title: string;
 };
@@ -63,6 +64,32 @@ function createDocumentCameraController(Controller: any) {
 
     return Controller.new();
   });
+}
+
+function writeScanToPDF(native: Record<string, any>, scan: any) {
+  const pageCount = Number(scan.pageCount ?? 0);
+  const path = `${native.NSTemporaryDirectory()}nativescript-rn-scan-${Date.now()}.pdf`;
+  const defaultBounds = {
+    origin: { x: 0, y: 0 },
+    size: { width: 612, height: 792 },
+  };
+
+  native.UIGraphicsBeginPDFContextToFile(path, defaultBounds, {});
+
+  for (let index = 0; index < pageCount; index += 1) {
+    const image = scan.imageOfPageAtIndex(index);
+    const size = image?.size ?? defaultBounds.size;
+    const bounds = {
+      origin: { x: 0, y: 0 },
+      size,
+    };
+
+    native.UIGraphicsBeginPDFPageWithInfo(bounds, {});
+    image.drawInRect(bounds);
+  }
+
+  native.UIGraphicsEndPDFContext();
+  return path;
 }
 
 function getDocumentCameraDelegateProtocol(native: Record<string, any>) {
@@ -131,29 +158,45 @@ function registerScannerDelegate(
   );
 
   delegate.onDone = (scan: any, controller: any) => {
-    const result = {
-      pageCount: scan.pageCount,
-      title: scan.title ?? 'Document scan',
-    };
-    controller.dismissViewControllerAnimatedCompletion(true, null);
-    activeScannerDelegate = undefined;
-    resolve(result);
+    completeScan(scan, controller).then(resolve).catch(reject);
   };
 
   delegate.onCancel = (controller: any) => {
-    controller.dismissViewControllerAnimatedCompletion(true, null);
-    activeScannerDelegate = undefined;
-    reject(new Error('Document scan cancelled.'));
+    dismissScan(controller)
+      .catch(() => {})
+      .finally(() => reject(new Error('Document scan cancelled.')));
   };
 
   delegate.onError = (error: any, controller: any) => {
-    controller.dismissViewControllerAnimatedCompletion(true, null);
-    activeScannerDelegate = undefined;
-    reject(new Error(error?.localizedDescription ?? 'Document scan failed.'));
+    const message = error?.localizedDescription ?? 'Document scan failed.';
+    dismissScan(controller)
+      .catch(() => {})
+      .finally(() => reject(new Error(message)));
   };
 
   activeScannerDelegate = delegate;
   return delegate;
+}
+
+async function completeScan(scan: any, controller: any) {
+  return runOnUIKit((native) => {
+    const pageCount = Number(scan.pageCount ?? 0);
+    const result = {
+      filePath: writeScanToPDF(native, scan),
+      pageCount,
+      title: scan.title ?? 'Document scan',
+    };
+    controller.dismissViewControllerAnimatedCompletion(true, null);
+    activeScannerDelegate = undefined;
+    return result;
+  });
+}
+
+async function dismissScan(controller: any) {
+  await runOnUIKit(() => {
+    controller.dismissViewControllerAnimatedCompletion(true, null);
+    activeScannerDelegate = undefined;
+  });
 }
 
 export async function isDocumentScannerAvailable() {

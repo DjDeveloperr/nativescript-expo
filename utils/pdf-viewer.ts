@@ -37,6 +37,8 @@ export async function createSamplePDF() {
 
     native.UIGraphicsBeginPDFContextToFile(path, bounds, {});
     native.UIGraphicsBeginPDFPage();
+    native.UIColor.whiteColor.setFill();
+    native.UIRectFill(bounds);
 
     const title = native.NSString.stringWithString('NativeScript React Native');
     title.drawAtPointWithAttributes(
@@ -45,7 +47,7 @@ export async function createSamplePDF() {
         [native.NSFontAttributeName]:
           native.UIFont.boldSystemFontOfSize(30),
         [native.NSForegroundColorAttributeName]:
-          native.UIColor.labelColor,
+          native.UIColor.blackColor,
       },
     );
 
@@ -60,7 +62,7 @@ export async function createSamplePDF() {
       {
         [native.NSFontAttributeName]: native.UIFont.systemFontOfSize(17),
         [native.NSForegroundColorAttributeName]:
-          native.UIColor.secondaryLabelColor,
+          native.UIColor.darkGrayColor,
       },
     );
 
