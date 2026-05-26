@@ -63,10 +63,7 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   logoImage: {
-    borderColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    height: 36,
+    height: 32,
     width: 36,
   },
   logo: {

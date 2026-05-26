@@ -66,40 +66,41 @@ function makeArtwork() {
     }
   }
 
-  const sourceLogo = path.join(sourceDir, 'expo-logo.svg');
-  const tempLogoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nativescriptrn-logo-'));
-  const renderedLogo = path.join(tempLogoDir, 'expo-logo.svg.png');
+  const sourceLogo = path.join(sourceDir, 'expo-logo-source.png');
   const logoOutputs = [
     ['logo.png', 40],
     ['logo@2x.png', 80],
     ['logo@3x.png', 120],
   ];
 
-  try {
-    const renderResult = spawnSync(
-      'qlmanage',
-      ['-t', '-s', '512', '-o', tempLogoDir, sourceLogo],
+  for (const [name, height] of logoOutputs) {
+    const destination = path.join(bundleDir, name);
+    const result = spawnSync(
+      'ffmpeg',
+      [
+        '-y',
+        '-loglevel',
+        'error',
+        '-i',
+        sourceLogo,
+        '-vf',
+        `format=rgba,lutrgb=r=negval:g=negval:b=negval,scale=-1:${height}`,
+        destination,
+      ],
       { encoding: 'utf8' },
     );
-    const logoSource =
-      renderResult.status === 0 && fs.existsSync(renderedLogo)
-        ? renderedLogo
-        : sourceIcon;
 
-    for (const [name, size] of logoOutputs) {
-      const destination = path.join(bundleDir, name);
-      const result = spawnSync(
+    if (result.status !== 0) {
+      const fallback = spawnSync(
         'sips',
-        ['-z', String(size), String(size), logoSource, '--out', destination],
+        ['-Z', String(height), sourceLogo, '--out', destination],
         { encoding: 'utf8' },
       );
 
-      if (result.status !== 0) {
-        copyFile(logoSource, destination);
+      if (fallback.status !== 0) {
+        copyFile(sourceLogo, destination);
       }
     }
-  } finally {
-    rmrf(tempLogoDir);
   }
 }
 
