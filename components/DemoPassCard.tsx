@@ -87,8 +87,9 @@ const styles = StyleSheet.create({
   },
   value: {
     color: '#fff',
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: '800',
+    lineHeight: 29,
   },
   fields: {
     flexDirection: 'row',
