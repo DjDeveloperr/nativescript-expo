@@ -2,6 +2,7 @@ import { presentNativeViewController } from './view-controller';
 import { loadSystemFramework, runOnUIKit } from './native-script';
 
 let previewDataSource: any;
+let activePreviewDataSources: any[] = [];
 
 function registerPreviewDataSource(native: Record<string, any>) {
   if (previewDataSource) {
@@ -80,8 +81,13 @@ export async function openNativePDFViewer(filePath?: string) {
     source.previewUrl = url;
     const controller = native.QLPreviewController.new();
     controller.dataSource = source;
+    activePreviewDataSources.push(source);
     controller.reloadData();
 
     return controller;
   });
+
+  if (activePreviewDataSources.length > 4) {
+    activePreviewDataSources = activePreviewDataSources.slice(-4);
+  }
 }

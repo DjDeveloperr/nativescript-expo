@@ -9,6 +9,22 @@ export type DocumentScanResult = {
 let scannerDelegateClass: any;
 let activeScannerDelegate: any;
 
+function getDocumentCameraController(native: typeof globalThis & Record<string, any>) {
+  loadSystemFramework(native, 'VisionKit');
+
+  const Controller = native.VNDocumentCameraViewController;
+
+  if (!Controller) {
+    throw new Error('VisionKit document scanner is not available on this OS.');
+  }
+
+  if (typeof Controller.isSupported !== 'function' || !Controller.isSupported()) {
+    throw new Error('VisionKit document scanner is not supported here.');
+  }
+
+  return Controller;
+}
+
 function registerScannerDelegate(
   native: Record<string, any>,
   resolve: (result: DocumentScanResult) => void,
@@ -31,7 +47,9 @@ function registerScannerDelegate(
       },
       {
         name: `NativeScriptRNDocumentScannerDelegate${Date.now()}`,
-        protocols: [native.VNDocumentCameraViewControllerDelegate],
+        protocols: native.VNDocumentCameraViewControllerDelegate
+          ? [native.VNDocumentCameraViewControllerDelegate]
+          : [],
       },
     );
   }
@@ -66,21 +84,20 @@ function registerScannerDelegate(
 
 export async function isDocumentScannerAvailable() {
   return runOnUIKit((native) => {
-    loadSystemFramework(native, 'VisionKit');
-    return native.VNDocumentCameraViewController.isSupported();
+    try {
+      getDocumentCameraController(native);
+      return true;
+    } catch {
+      return false;
+    }
   });
 }
 
 export async function openDocumentScanner() {
   return new Promise<DocumentScanResult>((resolve, reject) => {
     presentNativeViewController((native) => {
-      loadSystemFramework(native, 'VisionKit');
-
-      if (!native.VNDocumentCameraViewController.isSupported()) {
-        throw new Error('VisionKit document scanner is not supported here.');
-      }
-
-      const controller = native.VNDocumentCameraViewController.new();
+      const Controller = getDocumentCameraController(native);
+      const controller = Controller.new();
       controller.delegate = registerScannerDelegate(native, resolve, reject);
 
       return controller;
