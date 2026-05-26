@@ -1,17 +1,25 @@
 import { useState } from 'react';
 import { DemoButton, DemoScreen, StatusText } from './DemoScreen';
 import { DemoPassCard } from './DemoPassCard';
-import { notification } from '../utils/haptics';
+import { notification, selectionChanged } from '../utils/haptics';
 import { demoPassStatusText } from '../utils/demo-pass';
+import { openAppleWalletAddPassFlow } from '../utils/passkit';
+import { nativeScriptRNDemoPassBase64 } from '../assets/demo-pass/NativeScriptRN.pkpass';
 
 export function WalletPassTab() {
   const [status, setStatus] = useState(demoPassStatusText());
 
   async function handleOpenWallet() {
-    await notification('warning').catch(() => {});
-    setStatus(
-      'This demo pass needs a Pass Type ID certificate before Wallet can add it. Drop in a signed .pkpass payload and PKAddPassesViewController will present the native add flow.',
-    );
+    try {
+      await selectionChanged().catch(() => {});
+      setStatus('Presenting the native Apple Wallet add-pass flow.');
+      await openAppleWalletAddPassFlow({
+        base64PassData: nativeScriptRNDemoPassBase64,
+      });
+    } catch (error) {
+      await notification('error').catch(() => {});
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
   }
 
   return (

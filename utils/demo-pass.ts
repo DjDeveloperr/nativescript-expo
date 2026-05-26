@@ -2,7 +2,7 @@ export const demoPass = {
   formatVersion: 1,
   passTypeIdentifier: 'pass.com.djdev.NativeScriptRN.demo',
   serialNumber: 'NSRN-DEMO-0001',
-  teamIdentifier: 'TEAMID1234',
+  teamIdentifier: 'B55DTZ6VSU',
   organizationName: 'NativeScriptRN',
   description: 'NativeScriptRN Demo Pass',
   logoText: 'NativeScriptRN',

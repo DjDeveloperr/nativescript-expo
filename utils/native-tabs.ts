@@ -73,8 +73,16 @@ export const NativeTabBar = defineUIKitView<NativeTabBarProps, UITabBar>({
     tabBar.accessibilityLabel = 'Native UIKit tab bar';
     tabBar.tintColor = UIColor.systemBlueColor;
     tabBar.unselectedItemTintColor = UIColor.secondaryLabelColor;
-    tabBar.barTintColor = UIColor.systemBackgroundColor;
+    tabBar.backgroundColor = UIColor.clearColor;
+    tabBar.opaque = false;
     tabBar.translucent = true;
+    if (typeof UITabBarAppearance !== 'undefined') {
+      const appearance = UITabBarAppearance.new();
+      appearance.configureWithDefaultBackground();
+      tabBar.standardAppearance = appearance;
+      (tabBar as UITabBar & { scrollEdgeAppearance?: UITabBarAppearance })
+        .scrollEdgeAppearance = appearance;
+    }
     tabBarState.nativeOnSelect = props.onSelect;
     (tabBarState as any).nativeTabTitles = props.items.map((item) => item.title);
 

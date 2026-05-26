@@ -17,6 +17,7 @@ export function DemoScreen({ title, eyebrow, children }: DemoScreenProps) {
     <ScrollView
       contentContainerStyle={styles.container}
       contentInsetAdjustmentBehavior="automatic"
+      scrollIndicatorInsets={styles.scrollIndicatorInsets}
     >
       <View style={styles.header}>
         <Text style={styles.eyebrow}>{eyebrow}</Text>
@@ -49,6 +50,10 @@ const styles = StyleSheet.create({
   container: {
     gap: 18,
     padding: 22,
+    paddingBottom: 128,
+  },
+  scrollIndicatorInsets: {
+    bottom: 88,
   },
   header: {
     gap: 8,

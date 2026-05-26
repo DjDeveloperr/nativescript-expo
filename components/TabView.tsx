@@ -55,9 +55,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingBottom: 92,
   },
   nativeTabBar: {
+    backgroundColor: 'transparent',
     bottom: 0,
     height: 88,
     left: 0,
