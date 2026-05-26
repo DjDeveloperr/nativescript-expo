@@ -12,6 +12,12 @@ type NativeTabBarProps = {
   onSelect: (index: number) => void;
 };
 
+type NativeTabBarAccessoryButtonProps = {
+  title: string;
+  systemImage: string;
+  onPress: () => void;
+};
+
 const nativeScriptReady = NativeScript.init();
 const nativeRetainers: any[] = [];
 
@@ -38,6 +44,17 @@ const NativeTabBarDelegate = (NSObject as any).extend(
   },
 );
 
+const NativeAccessoryButtonTarget = (NSObject as any).extend(
+  {
+    accessoryButtonPressed() {
+      this.nativeOnPress?.();
+    },
+  },
+  {
+    name: `NativeScriptRNTabBarAccessoryTarget${Date.now()}`,
+  },
+);
+
 function createNativeItems(items: NativeTabItem[]) {
   return items.map((item, index) => {
     const image = UIImage.systemImageNamed(item.systemImage);
@@ -53,6 +70,26 @@ function createNativeItems(items: NativeTabItem[]) {
     (tabItem as UITabBarItem & { nativeIndex?: number }).nativeIndex = index;
     return tabItem;
   });
+}
+
+function configureAccessoryButton(
+  button: UIButton & { nativeOnPress?: () => void },
+  props: NativeTabBarAccessoryButtonProps,
+) {
+  const image = UIImage.systemImageNamed(props.systemImage);
+
+  button.nativeOnPress = props.onPress;
+  button.setTitleForState(props.title, UIControlState.Normal);
+  button.setImageForState(image, UIControlState.Normal);
+  button.setTitleColorForState(UIColor.whiteColor, UIControlState.Normal);
+  button.tintColor = UIColor.whiteColor;
+  button.backgroundColor = UIColor.systemBlueColor;
+  button.titleLabel.font = UIFont.boldSystemFontOfSize(17);
+  button.contentEdgeInsets = { top: 0, left: 18, bottom: 0, right: 20 };
+  button.imageEdgeInsets = { top: 0, left: -4, bottom: 0, right: 8 };
+  button.layer.cornerRadius = 24;
+  button.clipsToBounds = true;
+  button.accessibilityLabel = props.title;
 }
 
 export const NativeTabBar = defineUIKitView<NativeTabBarProps, UITabBar>({
@@ -123,6 +160,57 @@ export const NativeTabBar = defineUIKitView<NativeTabBarProps, UITabBar>({
       nativeTabBarDelegate?: unknown;
     }).nativeTabBarDelegate;
     const index = nativeRetainers.indexOf(delegate);
+    if (index >= 0) {
+      nativeRetainers.splice(index, 1);
+    }
+  },
+});
+
+export const NativeTabBarAccessoryButton = defineUIKitView<
+  NativeTabBarAccessoryButtonProps,
+  UIButton
+>({
+  name: 'NativeTabBarAccessoryButton',
+  create(props) {
+    if (!nativeScriptReady) {
+      throw new Error('NativeScript Native API is not ready.');
+    }
+
+    const button = UIButton.buttonWithType(UIButtonType.System) as UIButton & {
+      nativeAccessoryTarget?: unknown;
+      nativeOnPress?: () => void;
+    };
+    button.autoresizingMask =
+      UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
+    configureAccessoryButton(button, props);
+
+    const target = NativeAccessoryButtonTarget.new();
+    target.nativeOnPress = props.onPress;
+    nativeRetainers.push(target);
+    button.nativeAccessoryTarget = target;
+    button.addTargetActionForControlEvents(
+      target,
+      'accessoryButtonPressed',
+      UIControlEvents.TouchUpInside,
+    );
+
+    return button;
+  },
+  update(button, props) {
+    const buttonState = button as UIButton & {
+      nativeAccessoryTarget?: { nativeOnPress?: () => void };
+      nativeOnPress?: () => void;
+    };
+    configureAccessoryButton(buttonState, props);
+    if (buttonState.nativeAccessoryTarget) {
+      buttonState.nativeAccessoryTarget.nativeOnPress = props.onPress;
+    }
+  },
+  dispose(button) {
+    const target = (button as UIButton & {
+      nativeAccessoryTarget?: unknown;
+    }).nativeAccessoryTarget;
+    const index = nativeRetainers.indexOf(target);
     if (index >= 0) {
       nativeRetainers.splice(index, 1);
     }

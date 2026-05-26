@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { TabView } from './components/TabView';
 import { DocumentScannerTab } from './components/DocumentScannerTab';
 import { PDFViewerTab } from './components/PDFViewerTab';
+import { WalletAddPassAccessory } from './components/WalletAddPassAccessory';
 import { WalletPassTab } from './components/WalletPassTab';
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
             title: 'Wallet',
             systemImage: 'wallet.pass',
             selectedSystemImage: 'wallet.pass.fill',
+            accessory: <WalletAddPassAccessory />,
             content: <WalletPassTab />,
           },
           {

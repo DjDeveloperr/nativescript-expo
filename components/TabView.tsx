@@ -9,6 +9,7 @@ export type TabViewItem = {
   title: string;
   systemImage: string;
   selectedSystemImage?: string;
+  accessory?: ReactNode;
   content: ReactNode;
 };
 
@@ -39,6 +40,11 @@ export function TabView({ tabs }: TabViewProps) {
   return (
     <View style={styles.root}>
       <View style={styles.content}>{selectedTab.content}</View>
+      {selectedTab.accessory ? (
+        <View pointerEvents="box-none" style={styles.accessory}>
+          {selectedTab.accessory}
+        </View>
+      ) : null}
       <NativeTabBar
         items={nativeItems}
         onSelect={selectTab}
@@ -64,5 +70,12 @@ const styles = StyleSheet.create({
     left: 0,
     position: 'absolute',
     right: 0,
+  },
+  accessory: {
+    bottom: 88,
+    height: 54,
+    left: 22,
+    position: 'absolute',
+    right: 22,
   },
 });
