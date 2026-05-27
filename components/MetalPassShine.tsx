@@ -1,31 +1,23 @@
 import NativeScript, { defineUIKitView } from '@nativescript/react-native';
-import {
-  defineObjCClass,
-  loadSystemFramework,
-  nativeGlobals,
-  type ObjCClass,
-} from '../utils/ns';
+import { loadSystemFramework } from '../utils/ns';
 import { logWarning } from '../utils/logger';
 
 export const PASS_SHINE_WIDTH = 320;
 export const PASS_SHINE_HEIGHT = 704;
 
 type MetalShineView = UIView & {
-  nativeRenderer?: MetalShineRenderer;
+  nativeResources?: MetalShineResources;
   nativeFallbackLayers?: CALayer[];
 };
 
-type MetalShineRenderer = NSObject & {
-  commandQueue?: MTLCommandQueue;
-  pipeline?: MTLRenderPipelineState;
-  uniforms?: NSMutableData;
+type MetalShineResources = {
+  commandQueue: MTLCommandQueue;
+  pipeline: MTLRenderPipelineState;
+  uniforms: NSMutableData;
   startTime?: number;
-  mtkViewDrawableSizeWillChange(view: MTKView, size: CGSize): void;
-  drawInMTKView(view: MTKView): void;
 };
 
 const nativeScriptReady = NativeScript.init();
-let metalShineRendererClass: ObjCClass<MetalShineRenderer> | undefined;
 
 export const NativeMetalPassShine = defineUIKitView<{}, MetalShineView>({
   name: 'NativeMetalPassShine',
@@ -50,12 +42,11 @@ export const NativeMetalPassShine = defineUIKitView<{}, MetalShineView>({
   dispose(view) {
     if ('paused' in view) {
       (view as MTKView).paused = true;
-      (view as MTKView).delegate = null as unknown as MTKViewDelegate;
     }
 
     view.nativeFallbackLayers?.forEach((layer) => layer.removeFromSuperlayer());
     view.nativeFallbackLayers = undefined;
-    view.nativeRenderer = undefined;
+    view.nativeResources = undefined;
   },
 });
 
@@ -79,16 +70,13 @@ function createMetalShineView() {
   view.framebufferOnly = true;
   view.opaque = false;
   view.paused = true;
-  view.preferredFramesPerSecond = 60;
   view.enableSetNeedsDisplay = true;
   view.userInteractionEnabled = false;
 
-  const renderer = createMetalShineRenderer(device);
-  view.delegate = renderer;
-  view.nativeRenderer = renderer;
+  const resources = createMetalShineResources(device);
+  view.nativeResources = resources;
 
-  // Keep MetalKit from driving a display-link callback into JS every frame.
-  view.setNeedsDisplay();
+  drawMetalShine(resources, view);
 
   return view;
 }
@@ -119,33 +107,7 @@ function createFallbackShineView() {
   return view;
 }
 
-function createMetalShineRenderer(device: MTLDevice) {
-  if (!metalShineRendererClass) {
-    const delegateProtocol =
-      nativeGlobals().MTKViewDelegate ??
-      NSProtocolFromString?.('MTKViewDelegate') ??
-      objc_getProtocol?.('MTKViewDelegate');
-
-    if (!delegateProtocol) {
-      throw new Error('MTKViewDelegate is not available.');
-    }
-
-    metalShineRendererClass = defineObjCClass<MetalShineRenderer>(
-      {
-        mtkViewDrawableSizeWillChange() {},
-
-        drawInMTKView(view) {
-          drawMetalShine(this, view);
-        },
-      },
-      {
-        name: `NativeScriptRNMetalShineRenderer${Date.now()}`,
-        protocols: [delegateProtocol],
-      },
-    );
-  }
-
-  const renderer = metalShineRendererClass.new();
+function createMetalShineResources(device: MTLDevice) {
   const pipelineError = new interop.Reference();
   const library = device.newLibraryWithSourceOptionsError(
     METAL_SHINE_SHADER,
@@ -181,29 +143,26 @@ function createMetalShineRenderer(device: MTLDevice) {
     throw new Error(describeNativeError(renderPipelineError.value));
   }
 
-  renderer.commandQueue = device.newCommandQueue();
-  renderer.pipeline = pipeline;
-  renderer.uniforms = NSMutableData.dataWithLength(16) as NSMutableData;
-  renderer.startTime = Date.now() / 1000;
-
-  return renderer;
+  return {
+    commandQueue: device.newCommandQueue(),
+    pipeline,
+    uniforms: NSMutableData.dataWithLength(16) as NSMutableData,
+    startTime: Date.now() / 1000,
+  };
 }
 
-function drawMetalShine(renderer: MetalShineRenderer, view: MTKView) {
+function drawMetalShine(resources: MetalShineResources, view: MTKView) {
   const descriptor = view.currentRenderPassDescriptor;
   const drawable = view.currentDrawable;
-  const commandQueue = renderer.commandQueue;
-  const pipeline = renderer.pipeline;
-  const uniforms = renderer.uniforms;
 
-  if (!descriptor || !drawable || !commandQueue || !pipeline || !uniforms) {
-    return;
+  if (!descriptor || !drawable) {
+    throw new Error('MTKView did not provide a drawable.');
   }
 
   const width = Math.max(view.drawableSize.width, 1);
   const height = Math.max(view.drawableSize.height, 1);
-  const values = new Float32Array(interop.bufferFromData(uniforms));
-  values[0] = Date.now() / 1000 - (renderer.startTime ?? 0);
+  const values = new Float32Array(interop.bufferFromData(resources.uniforms));
+  values[0] = Date.now() / 1000 - (resources.startTime ?? 0);
   values[1] = width / height;
   values[2] = 1.15;
   values[3] = 0.37;
@@ -213,10 +172,10 @@ function drawMetalShine(renderer: MetalShineRenderer, view: MTKView) {
   colorAttachment.storeAction = MTLStoreAction.Store;
   colorAttachment.clearColor = transparentMetalColor();
 
-  const commandBuffer = commandQueue.commandBuffer();
+  const commandBuffer = resources.commandQueue.commandBuffer();
   const encoder = commandBuffer.renderCommandEncoderWithDescriptor(descriptor);
-  encoder.setRenderPipelineState(pipeline);
-  encoder.setFragmentBytesLengthAtIndex(uniforms.mutableBytes, 16, 0);
+  encoder.setRenderPipelineState(resources.pipeline);
+  encoder.setFragmentBytesLengthAtIndex(resources.uniforms.mutableBytes, 16, 0);
   encoder.drawPrimitivesVertexStartVertexCount(MTLPrimitiveType.Triangle, 0, 3);
   encoder.endEncoding();
   commandBuffer.presentDrawable(drawable);
