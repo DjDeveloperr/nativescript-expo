@@ -136,8 +136,8 @@ jobs:
             exit 1
           fi
 
+          echo "Using simulator $simulator_udid"
           xcrun simctl boot "$simulator_udid" || true
-          xcrun simctl bootstatus "$simulator_udid" -b
 
           SIMDECK_UDID="$simulator_udid" \
             E2E_APP_PATH="$app_path" \
