@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { execFileSync, spawnSync } = require('child_process');
+const { writeFileSync } = require('fs');
 
 const workspace = process.env.IOS_WORKSPACE || 'ios/NativeScriptRN.xcworkspace';
 const scheme = process.env.IOS_SCHEME || 'NativeScriptRN';
@@ -103,6 +104,10 @@ const selected = selectSimulator();
 console.log(
   `Building ${scheme} for ${selected.name} (${selected.udid}) on ${selected.runtime} [${selected.state}]`,
 );
+
+if (process.env.IOS_SIMULATOR_UDID_FILE) {
+  writeFileSync(process.env.IOS_SIMULATOR_UDID_FILE, `${selected.udid}\n`);
+}
 
 const buildSettings = [
   'CODE_SIGNING_ALLOWED=NO',

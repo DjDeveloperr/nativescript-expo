@@ -79,12 +79,18 @@ jobs:
         run: npx pod-install ios
 
       - name: Build iOS app
-        run: IOS_CONFIGURATION=Release npm run build:ios:ci
+        run: |
+          IOS_CONFIGURATION=Release \
+            IOS_SIMULATOR_UDID_FILE="$RUNNER_TEMP/ios-simulator-udid" \
+            npm run build:ios:ci
 
       - name: Run SimDeck E2E
-        timeout-minutes: 10
+        timeout-minutes: 12
         run: |
           set -euo pipefail
+
+          simulator_udid="$(cat "$RUNNER_TEMP/ios-simulator-udid")"
+          echo "Testing on simulator $simulator_udid"
 
           app_path="$(find "$HOME/Library/Developer/Xcode/DerivedData" \
             -path "*/Build/Products/Release-iphonesimulator/NativeScriptRN.app" \
@@ -97,5 +103,7 @@ jobs:
           fi
 
           E2E_APP_PATH="$app_path" \
-            E2E_TIMEOUT_MS=240000 \
+            E2E_TIMEOUT_MS=360000 \
+            SIMDECK_SHARED_SERVICE=1 \
+            SIMDECK_UDID="$simulator_udid" \
             npm run test:e2e
