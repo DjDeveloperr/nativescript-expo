@@ -18,6 +18,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck",
+    "build:ios:ci": "node scripts/ci-build-ios.js",
     "pass:build": "node scripts/build-demo-pass.js",
     "web": "expo start --web"
   },
