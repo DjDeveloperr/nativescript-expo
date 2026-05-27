@@ -1,40 +1,41 @@
-# NativeScriptRN
+# NativeScript Expo
 
-NativeScriptRN is an Expo + React Native iOS demo that uses
-`@nativescript/react-native` to build UIKit-first screens directly from
-TypeScript.
+An Expo project demonstrating how NativeScript can be used as a TurboModule to have
+deep iOS integration by directly exposing all of the iOS SDK in TypeScript.
+
+Why?
+
+- You use latest SDK APIs directly in TypeScript without any more dependencies
+- Hot-reload even native components without recompiling your React Native project
+
+The development of new NativeScript runtime using Node-API led to further explorations,
+like integrating with runtimes like Node.js and Deno on desktop. But now we're
+pushing it further, and adding a built-in JSI backend to NativeScript runtime.
+
+This allows NativeScript apps to use Hermes as an engine choice, along with V8, QuickJS,
+and JSC. Not only that, this allows NativeScript to compile as a JSI module for React Native
+apps as well - allowing full native API access using the foundation NativeScript apps have
+been built on for years.
 
 ## Features
+- **Apple Wallet (PassKit):** Generate and add “.pkpass” passes directly to the iOS Wallet.
+- **Document Scanner:** Native iOS document scanning functionality (VisionKit).
+- **PDF Viewer:** Native PDF rendering component (PDFKit).
+- **Native Tabs:** Seamless integration with native tab bar controllers.
+- **Metal:** Shader used to add shine effect to pass, along with CoreMotion for gyro effects.
 
-- Native `UITabBarController` tabs with per-tab accessory actions
-- Inline `UINavigationController` titles with scroll-aware native bars
-- PassKit add-pass flow and native Wallet-style pass preview
-- Metal-backed pass shine rendered through NativeScript
-- VisionKit document scanning with last-scan PDF handoff
-- QuickLook PDF presentation
+## Getting Started
 
-## Setup
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-```bash
-npm install
-```
-
-## Run
-
-```bash
-npx expo run:ios
-```
-
-The app targets Expo SDK 56 and uses native iOS APIs, so the iOS simulator or a
-physical iPhone is required for the full experience.
-
-## Notes
-
-- The included `.pkpass` fixture is for development only.
-- Document scanning requires camera access on a physical device.
-- The Metal shine view is rendered on demand to avoid display-link callbacks
-  into JavaScript.
+2. Run on iOS:
+   ```bash
+   npx expo run:ios
+   ```
 
 ## License
 
-MIT
+[MIT licensed.](./LICENSE)
