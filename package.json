@@ -20,9 +20,13 @@
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck",
+    "test:e2e": "node --test e2e/*.test.mjs",
     "build:ios:ci": "node scripts/ci-build-ios.js",
     "pass:build": "node scripts/build-demo-pass.js",
     "web": "expo start --web"
   },
-  "private": true
+  "private": true,
+  "optionalDependencies": {
+    "simdeck": "^0.1.27"
+  }
 }

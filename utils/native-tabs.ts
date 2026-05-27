@@ -1,9 +1,8 @@
 import NativeScript, {
   defineUIKitContainer,
-  defineUIKitView,
   defineUIViewController,
+  type UIKitViewContext,
 } from '@nativescript/react-native';
-import { defineObjCClass } from './ns';
 import { logError } from './logger';
 
 export type NativeTabItem = {
@@ -26,38 +25,22 @@ type NativeTabBarProps = {
   onSelect: (index: number) => void;
 };
 
-type NativeNavigationStackProps = {
-  title: string;
-};
-
 type NativeNavigationContainerProps = {
   title: string;
 };
 
+type NativeTabBarContext = UIKitViewContext<NativeTabBarProps>;
+
 /** `UITabBarController` augmented with the JS state we stash on each instance. */
 type TabBarControllerWithState = UITabBarController & {
-  nativeOnSelect?: (index: number) => void;
   nativeItems?: NativeTabItem[];
   nativeItemSignature?: string;
   nativeAccessory?: UITabAccessory;
   nativeAccessoryButton?: AccessoryButtonWithState;
-  nativeAccessoryTarget?: AccessoryButtonTarget;
-  nativeAccessorySignature?: string;
-  nativePendingSelectedIndex?: number;
   nativeSelectedIndex?: number;
-  nativeSelectionTimer?: ReturnType<typeof setTimeout>;
-  nativeTabControllerDelegate?: UITabBarControllerDelegate;
-  nativeTabControllerRetainer?: ReturnType<typeof NativeScript.createRetainer>;
 };
 
-type AccessoryButtonWithState = UIButton & {
-  nativeAccessoryTarget?: AccessoryButtonTarget;
-};
-
-type AccessoryButtonTarget = NSObject & {
-  nativeOnPress?: () => void | Promise<void>;
-  accessoryButtonPressed(): void;
-};
+type AccessoryButtonWithState = UIButton;
 
 type NavigationControllerWithState = UINavigationController & {
   nativeRootController?: UIViewController;
@@ -72,32 +55,6 @@ type NativeNavigationContainerState = {
 };
 
 const nativeScriptReady = NativeScript.init();
-const nativeRetainers: NSObject[] = [];
-
-const AccessoryButtonTargetClass = defineObjCClass<AccessoryButtonTarget>(
-  {
-    accessoryButtonPressed: NativeScript.eventBridge(function accessoryButtonPressed(
-      this: AccessoryButtonTarget,
-    ) {
-      const onPress = this.nativeOnPress;
-      if (!onPress) {
-        return;
-      }
-
-      void Promise.resolve()
-        .then(onPress)
-        .catch((error) => {
-          logError(error);
-        });
-    }, 'js'),
-  },
-  {
-    name: `NativeScriptRNTabBarAccessoryTarget${Date.now()}`,
-    exposedMethods: {
-      accessoryButtonPressed: { returns: interop.types.void, params: [] },
-    },
-  },
-);
 
 function createNativeControllers(items: NativeTabItem[]) {
   return items.map((item, index) => {
@@ -136,8 +93,8 @@ function clampSelectedIndex(selectedIndex: number, itemCount: number) {
 function configureTabBarController(
   controller: TabBarControllerWithState,
   props: NativeTabBarProps,
+  ctx?: NativeTabBarContext,
 ) {
-  controller.nativeOnSelect = props.onSelect;
   controller.nativeItems = props.items;
   controller.view.accessibilityValue = selectedAccessibilityValue(
     props.items,
@@ -172,7 +129,7 @@ function configureTabBarController(
     }
   }
 
-  configureBottomAccessory(controller, props.accessory);
+  configureBottomAccessory(controller, props.accessory, ctx);
 }
 
 function configureAccessoryButton(
@@ -208,84 +165,53 @@ function createAccessoryButton(props: NativeTabAccessory) {
   button.autoresizingMask =
     UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
   configureAccessoryButton(button, props);
-
-  const target = AccessoryButtonTargetClass.new();
-  target.nativeOnPress = props.onPress;
-  nativeRetainers.push(target);
-  button.nativeAccessoryTarget = target;
-  button.addTargetActionForControlEvents(
-    target,
-    'accessoryButtonPressed',
-    UIControlEvents.TouchUpInside,
-  );
-
   return button;
-}
-
-function accessorySignature(accessory: NativeTabAccessory) {
-  return [
-    accessory.title,
-    accessory.systemImage,
-    accessory.disabled === true ? 'disabled' : 'enabled',
-  ].join('\u0000');
 }
 
 function configureBottomAccessory(
   controller: TabBarControllerWithState,
   accessory: NativeTabAccessory | undefined,
+  ctx?: NativeTabBarContext,
 ) {
   if (!accessory) {
     if (controller.nativeAccessory) {
       controller.setBottomAccessoryAnimated(null, false);
-      releaseRetainer(controller.nativeAccessoryTarget);
-      controller.nativeAccessory = undefined;
-      controller.nativeAccessoryButton = undefined;
-      controller.nativeAccessoryTarget = undefined;
-      controller.nativeAccessorySignature = undefined;
     }
     return;
   }
 
-  const signature = accessorySignature(accessory);
-  if (
-    !controller.nativeAccessory ||
-    !controller.nativeAccessoryButton ||
-    !controller.nativeAccessoryTarget
-  ) {
-    releaseRetainer(controller.nativeAccessoryTarget);
-
+  if (!controller.nativeAccessory || !controller.nativeAccessoryButton) {
+    if (!ctx) {
+      throw new Error('Native tab accessory requires a NativeScript view context.');
+    }
     const button = createAccessoryButton(accessory);
     const tabAccessory = UITabAccessory.alloc().initWithContentView(button);
+    ctx.targetAction(button, UIControlEvents.TouchUpInside, () => {
+      const currentAccessory = ctx.props.accessory;
+      if (!currentAccessory || currentAccessory.disabled) {
+        return;
+      }
+
+      void Promise.resolve()
+        .then(currentAccessory.onPress)
+        .catch((error) => {
+          logError(error);
+        });
+    });
 
     controller.nativeAccessory = tabAccessory;
     controller.nativeAccessoryButton = button;
-    controller.nativeAccessoryTarget = button.nativeAccessoryTarget;
-    controller.nativeAccessorySignature = signature;
     controller.setBottomAccessoryAnimated(tabAccessory, false);
     return;
   }
 
   configureAccessoryButton(controller.nativeAccessoryButton, accessory);
-  if (controller.nativeAccessoryTarget) {
-    controller.nativeAccessoryTarget.nativeOnPress = accessory.onPress;
-  }
-  controller.nativeAccessorySignature = signature;
+  controller.setBottomAccessoryAnimated(controller.nativeAccessory, false);
 }
 
-function releaseRetainer(retainer: NSObject | undefined) {
-  if (!retainer) {
-    return;
-  }
-
-  const index = nativeRetainers.indexOf(retainer);
-  if (index >= 0) {
-    nativeRetainers.splice(index, 1);
-  }
-}
-
-function configureNavigationStack(
+function configureNavigationTitle(
   controller: NavigationControllerWithState,
-  props: NativeNavigationStackProps,
+  props: NativeNavigationContainerProps,
 ) {
   const rootController = controller.nativeRootController;
   if (!rootController) {
@@ -315,44 +241,6 @@ function configureNavigationBarBlur(navigationBar: UINavigationBar) {
   navigationBar.scrollEdgeAppearance = appearance;
   navigationBar.compactScrollEdgeAppearance = appearance;
 }
-
-export const NativeNavigationStack = defineUIViewController<
-  NativeNavigationStackProps,
-  NavigationControllerWithState
->({
-  name: 'NativeNavigationStack',
-  layout: { sizing: 'fill' },
-  createController() {
-    if (!nativeScriptReady) {
-      throw new Error('NativeScript Native API is not ready.');
-    }
-
-    const rootController = UIViewController.new();
-    rootController.view.backgroundColor = UIColor.clearColor;
-    rootController.navigationItem.largeTitleDisplayMode =
-      UINavigationItemLargeTitleDisplayMode.Never;
-
-    const controller = UINavigationController.alloc().initWithRootViewController(
-      rootController,
-    ) as NavigationControllerWithState;
-    controller.nativeRootController = rootController;
-    controller.view.backgroundColor = UIColor.clearColor;
-    controller.view.opaque = false;
-    controller.view.accessibilityIdentifier = 'native-uikit-navigation-stack';
-    controller.view.accessibilityLabel = 'Native UIKit navigation stack';
-    controller.navigationBar.prefersLargeTitles = false;
-    controller.navigationBar.opaque = false;
-    configureNavigationBarBlur(controller.navigationBar);
-
-    return controller;
-  },
-  update(controller, props) {
-    configureNavigationStack(controller, props);
-  },
-  dispose(controller) {
-    controller.nativeRootController = undefined;
-  },
-});
 
 export const NativeNavigationContainer = defineUIKitContainer<
   NativeNavigationContainerProps,
@@ -399,7 +287,7 @@ export const NativeNavigationContainer = defineUIKitContainer<
   },
   update(view, props) {
     const state = view as NativeNavigationContainerState;
-    configureNavigationStack(state.navigationController, props);
+    configureNavigationTitle(state.navigationController, props);
   },
   dispose(view) {
     const state = view as NativeNavigationContainerState;
@@ -414,7 +302,7 @@ export const NativeTabBarController = defineUIViewController<
 >({
   name: 'NativeTabBarController',
   layout: { sizing: 'fill' },
-  createController() {
+  createController(ctx) {
     if (!nativeScriptReady) {
       throw new Error('NativeScript Native API is not ready.');
     }
@@ -443,11 +331,11 @@ export const NativeTabBarController = defineUIViewController<
       ).scrollEdgeAppearance = appearance;
     }
 
-    const retainer = NativeScript.createRetainer();
-    const delegate = NativeScript.createDelegate<UITabBarControllerDelegate>(
+    ctx.delegate<UITabBarControllerDelegate>(
+      controller,
       UITabBarControllerDelegate,
       {
-        tabBarControllerDidSelectViewController: NativeScript.eventBridge(function tabBarControllerDidSelectViewController(
+        tabBarControllerDidSelectViewController(
           tabController,
         ) {
           const controller = tabController as TabBarControllerWithState;
@@ -457,90 +345,21 @@ export const NativeTabBarController = defineUIViewController<
           }
 
           controller.nativeSelectedIndex = selectedIndex;
-          controller.nativePendingSelectedIndex = selectedIndex;
-          if (controller.nativeSelectionTimer) {
-            return;
-          }
-
-          controller.nativeSelectionTimer = setTimeout(() => {
-            controller.nativeSelectionTimer = undefined;
-            const pendingIndex = controller.nativePendingSelectedIndex;
-            controller.nativePendingSelectedIndex = undefined;
-            if (pendingIndex === undefined) {
-              return;
-            }
-
-            controller.nativeOnSelect?.(pendingIndex);
-          }, 0);
-        }, 'js'),
+          ctx.emit('onSelect', selectedIndex);
+        },
       },
-      { retainer },
     );
-
-    controller.delegate = delegate;
-    controller.nativeTabControllerDelegate = delegate;
-    controller.nativeTabControllerRetainer = retainer;
 
     return controller;
   },
-  update(controller, props) {
-    configureTabBarController(controller, props);
+  update(controller, props, _previousProps, ctx) {
+    configureTabBarController(controller, props, ctx);
   },
   dispose(controller) {
     controller.delegate = null as unknown as UITabBarControllerDelegate;
     controller.setBottomAccessoryAnimated(null, false);
-    releaseRetainer(controller.nativeAccessoryTarget);
     controller.nativeAccessory = undefined;
     controller.nativeAccessoryButton = undefined;
-    controller.nativeAccessoryTarget = undefined;
-    controller.nativePendingSelectedIndex = undefined;
     controller.nativeSelectedIndex = undefined;
-    if (controller.nativeSelectionTimer) {
-      clearTimeout(controller.nativeSelectionTimer);
-      controller.nativeSelectionTimer = undefined;
-    }
-    controller.nativeTabControllerRetainer?.dispose();
-    controller.nativeTabControllerDelegate = undefined;
-    controller.nativeTabControllerRetainer = undefined;
-  },
-});
-
-export const NativeTabBarAccessoryButton = defineUIKitView<
-  NativeTabAccessory,
-  AccessoryButtonWithState
->({
-  name: 'NativeTabBarAccessoryButton',
-  create(props) {
-    if (!nativeScriptReady) {
-      throw new Error('NativeScript Native API is not ready.');
-    }
-
-    const button = UIButton.buttonWithType(
-      UIButtonType.System,
-    ) as AccessoryButtonWithState;
-    button.autoresizingMask =
-      UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
-    configureAccessoryButton(button, props);
-
-    const target = AccessoryButtonTargetClass.new();
-    target.nativeOnPress = props.onPress;
-    nativeRetainers.push(target);
-    button.nativeAccessoryTarget = target;
-    button.addTargetActionForControlEvents(
-      target,
-      'accessoryButtonPressed',
-      UIControlEvents.TouchUpInside,
-    );
-
-    return button;
-  },
-  update(button, props) {
-    configureAccessoryButton(button, props);
-    if (button.nativeAccessoryTarget) {
-      button.nativeAccessoryTarget.nativeOnPress = props.onPress;
-    }
-  },
-  dispose(button) {
-    releaseRetainer(button.nativeAccessoryTarget);
   },
 });
