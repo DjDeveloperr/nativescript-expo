@@ -9,6 +9,7 @@ const BUNDLE_ID = process.env.E2E_BUNDLE_ID || 'com.djdev.NativeScriptRN';
 const APP_PATH = process.env.E2E_APP_PATH;
 const DEVICE_UDID = process.env.SIMDECK_UDID || process.env.SIMDECK_DEVICE;
 const TEST_TIMEOUT_MS = Number(process.env.E2E_TIMEOUT_MS || 240_000);
+const APP_LAUNCH_TIMEOUT_MS = Number(process.env.E2E_APP_LAUNCH_TIMEOUT_MS || 300_000);
 const USE_SHARED_SERVICE = process.env.SIMDECK_SHARED_SERVICE === '1';
 const SIMDECK_CLI = process.env.SIMDECK_CLI || localPath('../node_modules/.bin/simdeck');
 const SIMDECK_PACKAGE_ROOT =
@@ -116,11 +117,40 @@ function waitForSimulatorBooted(udid) {
 }
 
 async function launchApp(simdeck) {
+  assert.ok(simdeck.udid, 'SimDeck did not provide a simulator UDID.');
+
+  terminateApp(simdeck.udid);
+
   try {
-    await simdeck.launch(BUNDLE_ID);
+    execFileSync(
+      'xcrun',
+      [
+        'simctl',
+        'launch',
+        '--stdout=/dev/null',
+        '--stderr=/dev/null',
+        simdeck.udid,
+        BUNDLE_ID,
+      ],
+      {
+        stdio: 'inherit',
+        timeout: APP_LAUNCH_TIMEOUT_MS,
+      },
+    );
   } catch (error) {
     await printRecentLogs(simdeck);
     throw error;
+  }
+}
+
+function terminateApp(udid) {
+  try {
+    execFileSync('xcrun', ['simctl', 'terminate', udid, BUNDLE_ID], {
+      stdio: 'ignore',
+      timeout: 15_000,
+    });
+  } catch {
+    // The app may not be running yet, which is fine before a fresh launch.
   }
 }
 

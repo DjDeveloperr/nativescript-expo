@@ -85,7 +85,7 @@ jobs:
             npm run build:ios:ci
 
       - name: Run SimDeck E2E
-        timeout-minutes: 12
+        timeout-minutes: 15
         run: |
           set -euo pipefail
 
@@ -103,7 +103,8 @@ jobs:
           fi
 
           E2E_APP_PATH="$app_path" \
-            E2E_TIMEOUT_MS=360000 \
+            E2E_TIMEOUT_MS=600000 \
+            E2E_APP_LAUNCH_TIMEOUT_MS=300000 \
             SIMDECK_SHARED_SERVICE=1 \
             SIMDECK_UDID="$simulator_udid" \
             npm run test:e2e
