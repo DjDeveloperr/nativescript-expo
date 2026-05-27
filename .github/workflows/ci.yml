@@ -79,33 +79,15 @@ jobs:
         run: npx pod-install ios
 
       - name: Build iOS app
-        run: npm run build:ios:ci
+        run: IOS_CONFIGURATION=Release npm run build:ios:ci
 
       - name: Run SimDeck E2E
         timeout-minutes: 10
         run: |
           set -euo pipefail
 
-          metro_log="$RUNNER_TEMP/metro.log"
-          npm run start -- --port 8081 --host localhost >"$metro_log" 2>&1 &
-          metro_pid=$!
-          trap 'kill "$metro_pid" >/dev/null 2>&1 || true' EXIT
-
-          bundle_url="http://localhost:8081/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true&minify=false"
-          for _ in {1..60}; do
-            if curl --max-time 30 -fsS "$bundle_url" >/dev/null; then
-              break
-            fi
-            sleep 2
-          done
-
-          if ! curl --max-time 30 -fsS "$bundle_url" >/dev/null; then
-            cat "$metro_log"
-            exit 1
-          fi
-
           app_path="$(find "$HOME/Library/Developer/Xcode/DerivedData" \
-            -path "*/Build/Products/Debug-iphonesimulator/NativeScriptRN.app" \
+            -path "*/Build/Products/Release-iphonesimulator/NativeScriptRN.app" \
             -print -quit)"
 
           if [ -z "$app_path" ]; then

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -42,13 +43,14 @@ test('native tab shell keeps each tab and accessory responsive', {
     }
 
     await simdeck.boot();
+    waitForSimulatorBooted(simdeck.udid);
 
     if (APP_PATH) {
       assert.ok(existsSync(APP_PATH), `E2E_APP_PATH does not exist: ${APP_PATH}`);
       await simdeck.install(APP_PATH);
     }
 
-    await simdeck.launch(BUNDLE_ID);
+    await launchApp(simdeck);
     await simdeck.waitFor(
       { label: 'Add Pass|Open Document|Scan Document', regex: true },
       { ...QUERY_OPTIONS, timeoutMs: 20_000 },
@@ -102,6 +104,36 @@ async function selectBootedIphone(simdeck) {
 
 function isIphone(device) {
   return typeof device?.name === 'string' && device.name.startsWith('iPhone');
+}
+
+function waitForSimulatorBooted(udid) {
+  assert.ok(udid, 'SimDeck did not provide a simulator UDID.');
+
+  execFileSync('xcrun', ['simctl', 'bootstatus', udid, '-b'], {
+    stdio: 'inherit',
+    timeout: 180_000,
+  });
+}
+
+async function launchApp(simdeck) {
+  try {
+    await simdeck.launch(BUNDLE_ID);
+  } catch (error) {
+    await printRecentLogs(simdeck);
+    throw error;
+  }
+}
+
+async function printRecentLogs(simdeck) {
+  try {
+    const entries = await simdeck.logs({ seconds: 45, limit: 120 });
+    const lines = entries.map((entry) =>
+      typeof entry === 'string' ? entry : JSON.stringify(entry),
+    );
+    console.error(lines.join('\n'));
+  } catch (logError) {
+    console.error(`Unable to collect simulator logs after launch failure: ${logError}`);
+  }
 }
 
 function localPath(relativePath) {
