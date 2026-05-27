@@ -4,6 +4,7 @@ import NativeScript, {
   defineUIViewController,
 } from '@nativescript/react-native';
 import { defineObjCClass } from './ns';
+import { logError } from './logger';
 
 export type NativeTabItem = {
   title: string;
@@ -82,7 +83,7 @@ const AccessoryButtonTargetClass = defineObjCClass<AccessoryButtonTarget>(
       void Promise.resolve()
         .then(onPress)
         .catch((error) => {
-          console.log(error);
+          logError(error);
         });
     }, 'js'),
   },

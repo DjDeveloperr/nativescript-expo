@@ -11,6 +11,7 @@ import {
   openDocumentScanner,
 } from './utils/document-scanner';
 import { openNativePDFViewer } from './utils/pdf-viewer';
+import { logError } from './utils/logger';
 
 export default function App() {
   const [scannerAvailable, setScannerAvailable] = useState(false);
@@ -21,7 +22,7 @@ export default function App() {
       .then(setScannerAvailable)
       .catch((error: unknown) => {
         setScannerAvailable(false);
-        console.log(error);
+        logError(error);
       });
   }, []);
 
@@ -30,7 +31,7 @@ export default function App() {
       await openNativePDFViewer();
     } catch (error) {
       await notification('error').catch(() => {});
-      console.log(error);
+      logError(error);
     }
   }, []);
 
@@ -46,7 +47,7 @@ export default function App() {
       await notification('success');
     } catch (error) {
       await notification('warning').catch(() => {});
-      console.log(error);
+      logError(error);
     }
   }, [scannerAvailable]);
 
@@ -60,7 +61,7 @@ export default function App() {
       await openNativePDFViewer(lastDocumentPath);
     } catch (error) {
       await notification('warning').catch(() => {});
-      console.log(error);
+      logError(error);
     }
   }, [lastDocumentPath]);
 

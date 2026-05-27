@@ -2,13 +2,13 @@ import NativeScript, { defineUIKitView } from '@nativescript/react-native';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Animated, PanResponder, StyleSheet } from 'react-native';
 import { demoPass } from '../utils/demo-pass';
+import {
+  NativeMetalPassShine,
+  PASS_SHINE_WIDTH,
+} from './MetalPassShine';
 
 type WalletPassView = UIView & {
   nativeCardView?: UIView;
-};
-
-type ShineView = UIView & {
-  nativeGradientLayer?: CAGradientLayer;
 };
 
 const nativeScriptReady = NativeScript.init();
@@ -152,31 +152,31 @@ export function DemoPassCard() {
     ],
   };
 
-  const shineStyle = {
+  const primaryShineStyle = {
     opacity: combinedX.interpolate({
       inputRange: [-160, 0, 160],
-      outputRange: [0.18, 0.32, 0.48],
+      outputRange: [0.4, 0.62, 0.9],
       extrapolate: 'clamp',
     }),
     transform: [
       {
         translateX: combinedX.interpolate({
           inputRange: [-194, 194],
-          outputRange: [-154, 178],
+          outputRange: [-214, 216],
           extrapolate: 'clamp',
         }),
       },
       {
         translateY: combinedY.interpolate({
           inputRange: [-184, 184],
-          outputRange: [-42, 46],
+          outputRange: [-70, 72],
           extrapolate: 'clamp',
         }),
       },
       {
         rotateZ: combinedX.interpolate({
           inputRange: [-194, 194],
-          outputRange: ['-30deg', '-9deg'],
+          outputRange: ['-34deg', '-7deg'],
           extrapolate: 'clamp',
         }),
       },
@@ -186,7 +186,7 @@ export function DemoPassCard() {
   const bloomStyle = {
     opacity: combinedY.interpolate({
       inputRange: [-150, 0, 150],
-      outputRange: [0.3, 0.16, 0.24],
+      outputRange: [0.56, 0.28, 0.48],
       extrapolate: 'clamp',
     }),
     transform: [
@@ -217,8 +217,11 @@ export function DemoPassCard() {
         style={styles.nativePassFill}
       />
       <AnimatedView pointerEvents="none" style={[styles.shineBloom, bloomStyle]} />
-      <AnimatedView pointerEvents="none" style={[styles.shineBeam, shineStyle]}>
-        <NativePassShine pointerEvents="none" style={styles.shineBeamFill} />
+      <AnimatedView
+        pointerEvents="none"
+        style={[styles.shineBeam, primaryShineStyle]}
+      >
+        <NativeMetalPassShine pointerEvents="none" style={styles.shineBeamFill} />
       </AnimatedView>
     </AnimatedView>
   );
@@ -274,48 +277,6 @@ const NativeWalletPassCard = defineUIKitView<{}, WalletPassView>({
   },
   dispose(view) {
     view.nativeCardView = undefined;
-  },
-});
-
-const NativePassShine = defineUIKitView<{}, ShineView>({
-  name: 'NativePassShine',
-  layout: {
-    sizing: 'fill',
-    defaultSize: { width: 190, height: CARD_HEIGHT + 240 },
-  },
-  create() {
-    if (!nativeScriptReady) {
-      throw new Error('NativeScript Native API is not ready.');
-    }
-
-    const view = UIView.alloc().initWithFrame({
-      origin: { x: 0, y: 0 },
-      size: { width: 190, height: CARD_HEIGHT + 240 },
-    }) as ShineView;
-    view.backgroundColor = UIColor.clearColor;
-    view.userInteractionEnabled = false;
-
-    const gradient = CAGradientLayer.layer() as CAGradientLayer;
-    gradient.frame = view.bounds;
-    gradient.startPoint = { x: 0, y: 0.5 };
-    gradient.endPoint = { x: 1, y: 0.5 };
-    gradient.colors = [
-      color(255, 255, 255, 0).CGColor,
-      color(190, 215, 255, 0.1).CGColor,
-      color(255, 255, 255, 0.42).CGColor,
-      color(255, 249, 224, 0.64).CGColor,
-      color(255, 255, 255, 0.3).CGColor,
-      color(255, 255, 255, 0).CGColor,
-    ];
-    gradient.locations = [0, 0.22, 0.42, 0.52, 0.64, 1];
-    view.layer.addSublayer(gradient);
-    view.nativeGradientLayer = gradient;
-
-    return view;
-  },
-  dispose(view) {
-    view.nativeGradientLayer?.removeFromSuperlayer();
-    view.nativeGradientLayer = undefined;
   },
 });
 
@@ -460,16 +421,16 @@ const styles = StyleSheet.create({
   },
   shineBeam: {
     bottom: -118,
-    left: 64,
+    left: 18,
     position: 'absolute',
     top: -118,
-    width: 190,
+    width: PASS_SHINE_WIDTH,
   },
   shineBeamFill: {
     flex: 1,
   },
   shineBloom: {
-    backgroundColor: 'rgba(164, 199, 255, 0.24)',
+    backgroundColor: 'rgba(164, 199, 255, 0.34)',
     borderRadius: 180,
     height: 360,
     left: -110,
