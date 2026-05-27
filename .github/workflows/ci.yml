@@ -82,6 +82,7 @@ jobs:
         run: npm run build:ios:ci
 
       - name: Run SimDeck E2E
+        timeout-minutes: 10
         run: |
           set -euo pipefail
 
@@ -92,13 +93,13 @@ jobs:
 
           bundle_url="http://localhost:8081/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true&minify=false"
           for _ in {1..60}; do
-            if curl -fsS "$bundle_url" >/dev/null; then
+            if curl --max-time 30 -fsS "$bundle_url" >/dev/null; then
               break
             fi
             sleep 2
           done
 
-          if ! curl -fsS "$bundle_url" >/dev/null; then
+          if ! curl --max-time 30 -fsS "$bundle_url" >/dev/null; then
             cat "$metro_log"
             exit 1
           fi
