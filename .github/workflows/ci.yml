@@ -42,7 +42,7 @@ jobs:
         run: npm test
 
   ios-build:
-    name: iOS Simulator Build
+    name: iOS Simulator Build and E2E
     runs-on: macos-15
     timeout-minutes: 60
     needs: test
@@ -79,4 +79,31 @@ jobs:
         run: npx pod-install ios
 
       - name: Build iOS app
-        run: npm run build:ios:ci
+        run: |
+          IOS_CONFIGURATION=Release \
+            IOS_SIMULATOR_UDID_FILE="$RUNNER_TEMP/ios-simulator-udid" \
+            npm run build:ios:ci
+
+      - name: Run SimDeck E2E
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+
+          simulator_udid="$(cat "$RUNNER_TEMP/ios-simulator-udid")"
+          echo "Testing on simulator $simulator_udid"
+
+          app_path="$(find "$HOME/Library/Developer/Xcode/DerivedData" \
+            -path "*/Build/Products/Release-iphonesimulator/NativeScriptRN.app" \
+            -print -quit)"
+
+          if [ -z "$app_path" ]; then
+            echo "Unable to locate NativeScriptRN.app"
+            find "$HOME/Library/Developer/Xcode/DerivedData" -path "*NativeScriptRN.app" -print
+            exit 1
+          fi
+
+          E2E_APP_PATH="$app_path" \
+            E2E_TIMEOUT_MS=360000 \
+            SIMDECK_SHARED_SERVICE=1 \
+            SIMDECK_UDID="$simulator_udid" \
+            npm run test:e2e
