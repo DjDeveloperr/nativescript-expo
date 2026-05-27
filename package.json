@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
-    "@nativescript/react-native": "^9.0.0-preview.1",
+    "@nativescript/react-native": "^9.0.0-preview.3",
     "expo": "~56.0.5",
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",

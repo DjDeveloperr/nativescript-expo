@@ -1,21 +1,17 @@
-import { DemoButton, DemoScreen } from './DemoScreen';
-import { notification } from '../utils/haptics';
-import { openNativePDFViewer } from '../utils/pdf-viewer';
+import { DemoCenteredStatus, DemoScreen } from './DemoScreen';
 
 export function PDFViewerTab() {
-  async function handleOpenPDF() {
-    try {
-      await openNativePDFViewer();
-      await notification('success');
-    } catch (error) {
-      await notification('error').catch(() => {});
-      console.log(error);
-    }
-  }
-
   return (
-    <DemoScreen eyebrow="QuickLook" title="PDF">
-      <DemoButton title="Open PDF" onPress={handleOpenPDF} />
+    <DemoScreen
+      eyebrow="QuickLook"
+      scrollEnabled={false}
+      title="PDF"
+      showsHeader={false}
+    >
+      <DemoCenteredStatus
+        systemImage="doc.richtext"
+        text="No PDF open"
+      />
     </DemoScreen>
   );
 }

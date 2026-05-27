@@ -1,5 +1,7 @@
 import { runOnUIKit } from './ns';
 
+const nilCompletion = null as unknown as () => void | null;
+
 function nativeBool(target: any, key: string) {
   const value = target?.[key];
   return typeof value === 'function' ? Boolean(value.call(target)) : Boolean(value);
@@ -55,7 +57,7 @@ export async function presentNativeViewController(
       presenter.presentViewControllerAnimatedCompletion(
         viewController,
         true,
-        () => {}
+        nilCompletion,
       );
 
       return true;
@@ -73,7 +75,7 @@ export async function presentNativeViewController(
 
 export async function dismissNativeViewController(viewController: UIViewController) {
   await runOnUIKit(() => {
-    viewController.dismissViewControllerAnimatedCompletion(true, () => {});
+    viewController.dismissViewControllerAnimatedCompletion(true, nilCompletion);
   });
 }
 

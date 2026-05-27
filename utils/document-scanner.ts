@@ -94,6 +94,16 @@ function createDocumentCameraController(Controller: any) {
   });
 }
 
+function isDocumentCameraSupported(Controller: any) {
+  return withNativeStep("support check", () => {
+    if (typeof Controller.isSupported === "function") {
+      return Boolean(Controller.isSupported());
+    }
+
+    return Boolean(Controller.supported);
+  });
+}
+
 function writeScanToPDF(scan: any) {
   const pageCount = Number(scan.pageCount ?? 0);
   const path = `${NSTemporaryDirectory()}nativescript-rn-scan-${Date.now()}.pdf`;
@@ -229,7 +239,10 @@ export async function isDocumentScannerAvailable() {
     const available = await runOnUIKit(() => {
       try {
         const Controller = getDocumentCameraController();
-        createDocumentCameraController(Controller);
+        if (!isDocumentCameraSupported(Controller)) {
+          return false;
+        }
+
         registerScannerDelegate(
           () => {},
           () => {},

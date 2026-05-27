@@ -1,121 +1,484 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
+import NativeScript, { defineUIKitView } from '@nativescript/react-native';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Animated, PanResponder, StyleSheet } from 'react-native';
 import { demoPass } from '../utils/demo-pass';
 
-const expoLogo = require('../assets/demo-pass/expo-logo-preview.png');
+type WalletPassView = UIView & {
+  nativeCardView?: UIView;
+};
+
+type ShineView = UIView & {
+  nativeGradientLayer?: CAGradientLayer;
+};
+
+const nativeScriptReady = NativeScript.init();
+const CARD_WIDTH = 358;
+const CARD_HEIGHT = 414;
+const CONTENT_INSET = 20;
+const AnimatedView = Animated.View;
 
 export function DemoPassCard() {
-  const [primary] = demoPass.storeCard.primaryFields;
-  const [member, level] = demoPass.storeCard.secondaryFields;
-  const [stack] = demoPass.storeCard.auxiliaryFields;
+  const tilt = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const gyroTilt = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const frame = useRef<number | null>(null);
+  const pendingTilt = useRef({ x: 0, y: 0 });
+
+  const resetTilt = useCallback(() => {
+    if (frame.current !== null) {
+      cancelAnimationFrame(frame.current);
+      frame.current = null;
+    }
+
+    Animated.spring(tilt, {
+      friction: 7,
+      tension: 70,
+      toValue: { x: 0, y: 0 },
+      useNativeDriver: true,
+    }).start();
+  }, [tilt]);
+
+  const setTiltFromGesture = useCallback(
+    (dx: number, dy: number) => {
+      pendingTilt.current = {
+        x: clamp(dx, -120, 120),
+        y: clamp(dy, -120, 120),
+      };
+
+      if (frame.current !== null) {
+        return;
+      }
+
+      frame.current = requestAnimationFrame(() => {
+        frame.current = null;
+        tilt.setValue(pendingTilt.current);
+      });
+    },
+    [tilt],
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
+        onPanResponderMove: (_, gesture) => {
+          setTiltFromGesture(gesture.dx, gesture.dy);
+        },
+        onPanResponderRelease: resetTilt,
+        onPanResponderTerminate: resetTilt,
+      }),
+    [resetTilt, setTiltFromGesture],
+  );
+
+  useEffect(
+    () => () => {
+      if (frame.current !== null) {
+        cancelAnimationFrame(frame.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!nativeScriptReady || typeof CMMotionManager === 'undefined') {
+      return;
+    }
+
+    const motionManager = CMMotionManager.alloc().init();
+    if (!motionManager.deviceMotionAvailable) {
+      return;
+    }
+
+    motionManager.deviceMotionUpdateInterval = 1 / 24;
+    motionManager.startDeviceMotionUpdates();
+
+    const current = { x: 0, y: 0 };
+    let animationFrame: number | null = null;
+
+    const updateGyroTilt = () => {
+      const attitude = motionManager.deviceMotion?.attitude;
+      const target = attitude
+        ? {
+            x: clamp(attitude.roll * 96, -74, 74),
+            y: clamp(-attitude.pitch * 82, -64, 64),
+          }
+        : { x: 0, y: 0 };
+
+      current.x += (target.x - current.x) * 0.16;
+      current.y += (target.y - current.y) * 0.16;
+
+      if (Math.abs(target.x - current.x) < 0.01) {
+        current.x = target.x;
+      }
+      if (Math.abs(target.y - current.y) < 0.01) {
+        current.y = target.y;
+      }
+
+      gyroTilt.setValue(current);
+      animationFrame = requestAnimationFrame(updateGyroTilt);
+    };
+
+    updateGyroTilt();
+
+    return () => {
+      if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+      }
+      motionManager.stopDeviceMotionUpdates();
+      gyroTilt.setValue({ x: 0, y: 0 });
+    };
+  }, [gyroTilt]);
+
+  const combinedX = Animated.add(tilt.x, gyroTilt.x);
+  const combinedY = Animated.add(tilt.y, gyroTilt.y);
+
+  const cardStyle = {
+    transform: [
+      { perspective: 900 },
+      {
+        rotateX: combinedY.interpolate({
+          inputRange: [-184, 184],
+          outputRange: ['12deg', '-12deg'],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        rotateY: combinedX.interpolate({
+          inputRange: [-194, 194],
+          outputRange: ['-14deg', '14deg'],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  };
+
+  const shineStyle = {
+    opacity: combinedX.interpolate({
+      inputRange: [-160, 0, 160],
+      outputRange: [0.18, 0.32, 0.48],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateX: combinedX.interpolate({
+          inputRange: [-194, 194],
+          outputRange: [-154, 178],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        translateY: combinedY.interpolate({
+          inputRange: [-184, 184],
+          outputRange: [-42, 46],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        rotateZ: combinedX.interpolate({
+          inputRange: [-194, 194],
+          outputRange: ['-30deg', '-9deg'],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  };
+
+  const bloomStyle = {
+    opacity: combinedY.interpolate({
+      inputRange: [-150, 0, 150],
+      outputRange: [0.3, 0.16, 0.24],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateX: combinedX.interpolate({
+          inputRange: [-194, 194],
+          outputRange: [92, -58],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        translateY: combinedY.interpolate({
+          inputRange: [-184, 184],
+          outputRange: [42, -48],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  };
 
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.logoGroup}>
-          <Image source={expoLogo} style={styles.logoImage} />
-          <Text style={styles.logo}>{demoPass.logoText}</Text>
-        </View>
-        <Text style={styles.badge}>DEMO</Text>
-      </View>
-      <View style={styles.primary}>
-        <Text style={styles.label}>{primary.label}</Text>
-        <Text style={styles.value}>{primary.value}</Text>
-      </View>
-      <View style={styles.fields}>
-        <Field label={member.label} value={member.value} />
-        <Field label={level.label} value={level.value} />
-        <Field label={stack.label} value={stack.value} />
-      </View>
-      <View style={styles.code}>
-        <Text style={styles.codeText}>{demoPass.barcode.message}</Text>
-      </View>
-    </View>
+    <AnimatedView
+      {...panResponder.panHandlers}
+      style={[styles.nativePass, cardStyle]}
+    >
+      <NativeWalletPassCard
+        pointerEvents="none"
+        style={styles.nativePassFill}
+      />
+      <AnimatedView pointerEvents="none" style={[styles.shineBloom, bloomStyle]} />
+      <AnimatedView pointerEvents="none" style={[styles.shineBeam, shineStyle]}>
+        <NativePassShine pointerEvents="none" style={styles.shineBeamFill} />
+      </AnimatedView>
+    </AnimatedView>
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.smallValue}>{value}</Text>
-    </View>
+const NativeWalletPassCard = defineUIKitView<{}, WalletPassView>({
+  name: 'NativeWalletPassCard',
+  layout: {
+    sizing: 'fill',
+    defaultSize: { width: CARD_WIDTH, height: CARD_HEIGHT },
+  },
+  create() {
+    if (!nativeScriptReady) {
+      throw new Error('NativeScript Native API is not ready.');
+    }
+
+    const rootView = UIView.alloc().initWithFrame({
+      origin: { x: 0, y: 0 },
+      size: { width: CARD_WIDTH, height: CARD_HEIGHT },
+    }) as WalletPassView;
+    rootView.backgroundColor = UIColor.clearColor;
+    rootView.userInteractionEnabled = false;
+
+    const cardView = UIView.alloc().initWithFrame(rootView.bounds);
+    cardView.backgroundColor = color(23, 25, 35, 1);
+    cardView.layer.borderColor = color(255, 255, 255, 0.14).CGColor;
+    cardView.layer.borderWidth = 1;
+    cardView.layer.cornerRadius = 18;
+    cardView.layer.masksToBounds = true;
+    cardView.layer.shadowColor = UIColor.blackColor.CGColor;
+    cardView.layer.shadowOpacity = 0.32;
+    cardView.layer.shadowOffset = { width: 0, height: 18 };
+    cardView.layer.shadowRadius = 26;
+    cardView.layer.allowsEdgeAntialiasing = true;
+    cardView.userInteractionEnabled = false;
+    cardView.autoresizingMask =
+      UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
+    rootView.addSubview(cardView);
+
+    addMetalBand(cardView, -32, 10, CARD_WIDTH + 64, 68, color(255, 255, 255, 0.08));
+    addMetalBand(cardView, -32, 132, CARD_WIDTH + 64, 92, color(112, 130, 155, 0.16));
+    addMetalBand(cardView, -32, 318, CARD_WIDTH + 64, 78, color(255, 255, 255, 0.06));
+
+    addHeader(cardView);
+    addPrimary(cardView);
+    addFields(cardView);
+    addQrPanel(cardView);
+
+    rootView.nativeCardView = cardView;
+    rootView.accessibilityLabel = 'NativeScript App.js Pass';
+
+    return rootView;
+  },
+  dispose(view) {
+    view.nativeCardView = undefined;
+  },
+});
+
+const NativePassShine = defineUIKitView<{}, ShineView>({
+  name: 'NativePassShine',
+  layout: {
+    sizing: 'fill',
+    defaultSize: { width: 190, height: CARD_HEIGHT + 240 },
+  },
+  create() {
+    if (!nativeScriptReady) {
+      throw new Error('NativeScript Native API is not ready.');
+    }
+
+    const view = UIView.alloc().initWithFrame({
+      origin: { x: 0, y: 0 },
+      size: { width: 190, height: CARD_HEIGHT + 240 },
+    }) as ShineView;
+    view.backgroundColor = UIColor.clearColor;
+    view.userInteractionEnabled = false;
+
+    const gradient = CAGradientLayer.layer() as CAGradientLayer;
+    gradient.frame = view.bounds;
+    gradient.startPoint = { x: 0, y: 0.5 };
+    gradient.endPoint = { x: 1, y: 0.5 };
+    gradient.colors = [
+      color(255, 255, 255, 0).CGColor,
+      color(190, 215, 255, 0.1).CGColor,
+      color(255, 255, 255, 0.42).CGColor,
+      color(255, 249, 224, 0.64).CGColor,
+      color(255, 255, 255, 0.3).CGColor,
+      color(255, 255, 255, 0).CGColor,
+    ];
+    gradient.locations = [0, 0.22, 0.42, 0.52, 0.64, 1];
+    view.layer.addSublayer(gradient);
+    view.nativeGradientLayer = gradient;
+
+    return view;
+  },
+  dispose(view) {
+    view.nativeGradientLayer?.removeFromSuperlayer();
+    view.nativeGradientLayer = undefined;
+  },
+});
+
+function addHeader(cardView: UIView) {
+  const icon = UIImageView.alloc().initWithImage(UIImage.systemImageNamed('wallet.pass'));
+  icon.frame = frame(CONTENT_INSET, 21, 34, 30);
+  icon.contentMode = UIViewContentMode.ScaleAspectFit;
+  icon.tintColor = UIColor.whiteColor;
+  cardView.addSubview(icon);
+
+  const logo = label(demoPass.logoText, 18, UIColor.whiteColor, true);
+  logo.frame = frame(64, 21, 214, 30);
+  cardView.addSubview(logo);
+
+  const badge = label('DEMO', 12, color(203, 213, 225, 1), true);
+  badge.textAlignment = NSTextAlignment.Right;
+  badge.frame = frame(284, 23, 54, 24);
+  cardView.addSubview(badge);
+}
+
+function addPrimary(cardView: UIView) {
+  const [primary] = demoPass.storeCard.primaryFields;
+  const labelView = label(primary.label, 11, color(203, 213, 225, 1), true);
+  labelView.frame = frame(CONTENT_INSET, 81, 318, 14);
+  cardView.addSubview(labelView);
+
+  const valueView = label(primary.value, 24, UIColor.whiteColor, true);
+  valueView.frame = frame(CONTENT_INSET, 98, 318, 32);
+  cardView.addSubview(valueView);
+}
+
+function addFields(cardView: UIView) {
+  const [member, level] = demoPass.storeCard.secondaryFields;
+  const [stack] = demoPass.storeCard.auxiliaryFields;
+  const fields = [member, level, stack];
+
+  fields.forEach((field, index) => {
+    const x = CONTENT_INSET + index * 110;
+    const labelView = label(field.label.toUpperCase(), 11, color(203, 213, 225, 1), true);
+    labelView.frame = frame(x, 148, 96, 14);
+    cardView.addSubview(labelView);
+
+    const valueView = label(field.value, 16, UIColor.whiteColor, true);
+    valueView.frame = frame(x, 166, 96, 22);
+    cardView.addSubview(valueView);
+  });
+}
+
+function addQrPanel(cardView: UIView) {
+  const panel = UIView.alloc().initWithFrame(frame(CONTENT_INSET, 216, 318, 178));
+  panel.backgroundColor = UIColor.whiteColor;
+  panel.layer.cornerRadius = 10;
+  panel.layer.masksToBounds = true;
+  panel.userInteractionEnabled = false;
+  cardView.addSubview(panel);
+
+  const qrImage = createQrImage(demoPass.barcode.message);
+  const qrView = UIImageView.alloc().initWithImage(qrImage);
+  qrView.frame = frame(88, 18, 142, 142);
+  qrView.contentMode = UIViewContentMode.ScaleAspectFit;
+  qrView.accessibilityLabel = `${demoPass.barcode.message} QR code`;
+  panel.addSubview(qrView);
+}
+
+function addMetalBand(
+  view: UIView,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  backgroundColor: UIColor,
+) {
+  const band = UIView.alloc().initWithFrame(frame(x, y, width, height));
+  band.backgroundColor = backgroundColor;
+  band.transform = CGAffineTransformMakeRotation(-0.209);
+  band.userInteractionEnabled = false;
+  view.addSubview(band);
+}
+
+function createQrImage(message: string) {
+  const filter = CIFilter.filterWithName('CIQRCodeGenerator');
+  const data = NSString.stringWithString(message).dataUsingEncoding(
+    NSUTF8StringEncoding,
   );
+  filter.setValueForKey(data, 'inputMessage');
+  filter.setValueForKey('M' as unknown as NSString, 'inputCorrectionLevel');
+
+  const outputImage = filter.outputImage.imageByApplyingTransform(
+    CGAffineTransformMakeScale(8, 8),
+  );
+  return UIImage.imageWithCIImage(outputImage);
+}
+
+function label(
+  text: string,
+  fontSize: number,
+  textColor: UIColor,
+  bold = false,
+) {
+  const view = UILabel.alloc().initWithFrame(CGRectZero);
+  view.text = text;
+  view.textColor = textColor;
+  view.font = bold
+    ? UIFont.boldSystemFontOfSize(fontSize)
+    : UIFont.systemFontOfSize(fontSize);
+  view.adjustsFontSizeToFitWidth = true;
+  view.minimumScaleFactor = 0.72;
+  return view;
+}
+
+function color(red: number, green: number, blue: number, alpha: number) {
+  return UIColor.colorWithRedGreenBlueAlpha(
+    red / 255,
+    green / 255,
+    blue / 255,
+    alpha,
+  );
+}
+
+function frame(x: number, y: number, width: number, height: number) {
+  return {
+    origin: { x, y },
+    size: { width, height },
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#111827',
-    borderRadius: 8,
-    gap: 20,
+  nativePass: {
+    alignSelf: 'center',
+    borderRadius: 18,
+    height: CARD_HEIGHT,
     overflow: 'hidden',
-    padding: 20,
+    width: CARD_WIDTH,
   },
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  nativePassFill: {
+    height: CARD_HEIGHT,
+    width: CARD_WIDTH,
   },
-  logoGroup: {
-    alignItems: 'center',
+  shineBeam: {
+    bottom: -118,
+    left: 64,
+    position: 'absolute',
+    top: -118,
+    width: 190,
+  },
+  shineBeamFill: {
     flex: 1,
-    flexDirection: 'row',
-    gap: 10,
-    paddingRight: 12,
   },
-  logoImage: {
-    height: 32,
-    width: 36,
-  },
-  logo: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  badge: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  primary: {
-    gap: 4,
-  },
-  label: {
-    color: '#cbd5e1',
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  value: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '800',
-    lineHeight: 29,
-  },
-  fields: {
-    flexDirection: 'row',
-    gap: 14,
-  },
-  field: {
-    flex: 1,
-    gap: 4,
-  },
-  smallValue: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  code: {
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    minHeight: 64,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  codeText: {
-    color: '#111827',
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0,
+  shineBloom: {
+    backgroundColor: 'rgba(164, 199, 255, 0.24)',
+    borderRadius: 180,
+    height: 360,
+    left: -110,
+    position: 'absolute',
+    shadowColor: '#dbeafe',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 46,
+    top: -72,
+    width: 360,
   },
 });
