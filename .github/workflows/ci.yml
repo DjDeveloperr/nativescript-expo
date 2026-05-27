@@ -114,33 +114,6 @@ jobs:
             exit 1
           fi
 
-          simulator_udid="$(
-            xcrun simctl list devices available --json | node -e '
-              const fs = require("node:fs");
-              const payload = JSON.parse(fs.readFileSync(0, "utf8"));
-              const devices = Object.values(payload.devices || {}).flat()
-                .filter((device) => device.isAvailable && /^iPhone\b/.test(device.name));
-              const selected =
-                devices.find((device) => device.state === "Booted") ||
-                devices.find((device) => /iPhone 17/.test(device.name)) ||
-                devices[0];
-              if (!selected) {
-                process.exit(1);
-              }
-              process.stdout.write(selected.udid);
-            '
-          )"
-
-          if [ -z "$simulator_udid" ]; then
-            echo "Unable to locate an available iPhone simulator"
-            xcrun simctl list devices available
-            exit 1
-          fi
-
-          echo "Using simulator $simulator_udid"
-          xcrun simctl boot "$simulator_udid" || true
-
-          SIMDECK_UDID="$simulator_udid" \
-            E2E_APP_PATH="$app_path" \
+          E2E_APP_PATH="$app_path" \
             E2E_TIMEOUT_MS=240000 \
             npm run test:e2e
