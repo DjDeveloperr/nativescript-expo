@@ -6,6 +6,7 @@ import {
   NativeMetalPassShine,
   PASS_SHINE_WIDTH,
 } from './MetalPassShine';
+import { useTabSceneActive } from './TabView';
 
 type WalletPassView = UIView & {
   nativeCardView?: UIView;
@@ -18,6 +19,7 @@ const CONTENT_INSET = 20;
 const AnimatedView = Animated.View;
 
 export function DemoPassCard() {
+  const sceneActive = useTabSceneActive();
   const tilt = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const gyroTilt = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const frame = useRef<number | null>(null);
@@ -80,6 +82,11 @@ export function DemoPassCard() {
   );
 
   useEffect(() => {
+    if (!sceneActive) {
+      gyroTilt.setValue({ x: 0, y: 0 });
+      return;
+    }
+
     if (!nativeScriptReady || typeof CMMotionManager === 'undefined') {
       return;
     }
@@ -127,7 +134,7 @@ export function DemoPassCard() {
       motionManager.stopDeviceMotionUpdates();
       gyroTilt.setValue({ x: 0, y: 0 });
     };
-  }, [gyroTilt]);
+  }, [gyroTilt, sceneActive]);
 
   const combinedX = Animated.add(tilt.x, gyroTilt.x);
   const combinedY = Animated.add(tilt.y, gyroTilt.y);

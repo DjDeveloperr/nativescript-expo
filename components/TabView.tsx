@@ -1,4 +1,12 @@
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   NativeNavigationContainer,
@@ -20,6 +28,12 @@ export type TabViewItem = {
 type TabViewProps = {
   tabs: TabViewItem[];
 };
+
+const TabSceneActiveContext = createContext(true);
+
+export function useTabSceneActive() {
+  return useContext(TabSceneActiveContext);
+}
 
 export function TabView({ tabs }: TabViewProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -74,7 +88,29 @@ export function TabView({ tabs }: TabViewProps) {
         title={selectedTab.title}
         style={styles.content}
       >
-        {selectedTab.content}
+        <View style={styles.scenes}>
+          {tabs.map((tab, index) => {
+            const active = index === selectedIndex;
+
+            return (
+              <TabSceneActiveContext.Provider key={tab.key} value={active}>
+                <View
+                  accessibilityElementsHidden={!active}
+                  importantForAccessibility={
+                    active ? 'auto' : 'no-hide-descendants'
+                  }
+                  pointerEvents={active ? 'auto' : 'none'}
+                  style={[
+                    styles.scene,
+                    active ? styles.sceneActive : styles.sceneInactive,
+                  ]}
+                >
+                  {tab.content}
+                </View>
+              </TabSceneActiveContext.Provider>
+            );
+          })}
+        </View>
       </NativeNavigationContainer>
       <NativeTabBarController
         accessory={selectedTab.accessory}
@@ -97,6 +133,24 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scenes: {
+    flex: 1,
+  },
+  scene: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  sceneActive: {
+    opacity: 1,
+    zIndex: 1,
+  },
+  sceneInactive: {
+    opacity: 0,
+    zIndex: 0,
   },
   nativeTabController: {
     backgroundColor: colors.transparent,

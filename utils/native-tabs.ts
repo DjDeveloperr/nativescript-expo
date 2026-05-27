@@ -43,6 +43,9 @@ type TabBarControllerWithState = UITabBarController & {
   nativeAccessoryButton?: AccessoryButtonWithState;
   nativeAccessoryTarget?: AccessoryButtonTarget;
   nativeAccessorySignature?: string;
+  nativePendingSelectedIndex?: number;
+  nativeSelectedIndex?: number;
+  nativeSelectionTimer?: ReturnType<typeof setTimeout>;
   nativeTabControllerDelegate?: UITabBarControllerDelegate;
   nativeTabControllerRetainer?: ReturnType<typeof NativeScript.createRetainer>;
 };
@@ -58,6 +61,7 @@ type AccessoryButtonTarget = NSObject & {
 
 type NavigationControllerWithState = UINavigationController & {
   nativeRootController?: UIViewController;
+  nativeTitle?: string;
 };
 
 type NativeNavigationContainerState = {
@@ -141,7 +145,8 @@ function configureTabBarController(
   );
 
   const itemSignature = nativeItemSignature(props.items);
-  if (controller.nativeItemSignature !== itemSignature) {
+  const didRebuildItems = controller.nativeItemSignature !== itemSignature;
+  if (didRebuildItems) {
     controller.setViewControllersAnimated(
       NSArray.arrayWithArray(createNativeControllers(props.items)),
       false,
@@ -150,10 +155,21 @@ function configureTabBarController(
   }
 
   if (props.items.length > 0) {
-    controller.selectedIndex = clampSelectedIndex(
+    const selectedIndex = clampSelectedIndex(
       props.selectedIndex,
       props.items.length,
     );
+    const needsNativeSelection =
+      didRebuildItems ||
+      controller.nativeSelectedIndex === undefined ||
+      controller.nativeSelectedIndex >= props.items.length;
+
+    if (needsNativeSelection && controller.selectedIndex !== selectedIndex) {
+      controller.selectedIndex = selectedIndex;
+    }
+    if (needsNativeSelection) {
+      controller.nativeSelectedIndex = selectedIndex;
+    }
   }
 
   configureBottomAccessory(controller, props.accessory);
@@ -234,7 +250,7 @@ function configureBottomAccessory(
   if (
     !controller.nativeAccessory ||
     !controller.nativeAccessoryButton ||
-    controller.nativeAccessorySignature !== signature
+    !controller.nativeAccessoryTarget
   ) {
     releaseRetainer(controller.nativeAccessoryTarget);
 
@@ -253,6 +269,7 @@ function configureBottomAccessory(
   if (controller.nativeAccessoryTarget) {
     controller.nativeAccessoryTarget.nativeOnPress = accessory.onPress;
   }
+  controller.nativeAccessorySignature = signature;
 }
 
 function releaseRetainer(retainer: NSObject | undefined) {
@@ -275,11 +292,10 @@ function configureNavigationStack(
     return;
   }
 
-  rootController.navigationItem.title = props.title;
-  rootController.navigationItem.largeTitleDisplayMode =
-    UINavigationItemLargeTitleDisplayMode.Never;
-  controller.navigationBar.prefersLargeTitles = false;
-  configureNavigationBarBlur(controller.navigationBar);
+  if (controller.nativeTitle !== props.title) {
+    rootController.navigationItem.title = props.title;
+    controller.nativeTitle = props.title;
+  }
 }
 
 function configureNavigationBarBlur(navigationBar: UINavigationBar) {
@@ -434,9 +450,28 @@ export const NativeTabBarController = defineUIViewController<
         tabBarControllerDidSelectViewController: NativeScript.eventBridge(function tabBarControllerDidSelectViewController(
           tabController,
         ) {
-          (tabController as TabBarControllerWithState).nativeOnSelect?.(
-            tabController.selectedIndex,
-          );
+          const controller = tabController as TabBarControllerWithState;
+          const selectedIndex = controller.selectedIndex;
+          if (controller.nativeSelectedIndex === selectedIndex) {
+            return;
+          }
+
+          controller.nativeSelectedIndex = selectedIndex;
+          controller.nativePendingSelectedIndex = selectedIndex;
+          if (controller.nativeSelectionTimer) {
+            return;
+          }
+
+          controller.nativeSelectionTimer = setTimeout(() => {
+            controller.nativeSelectionTimer = undefined;
+            const pendingIndex = controller.nativePendingSelectedIndex;
+            controller.nativePendingSelectedIndex = undefined;
+            if (pendingIndex === undefined) {
+              return;
+            }
+
+            controller.nativeOnSelect?.(pendingIndex);
+          }, 0);
         }, 'js'),
       },
       { retainer },
@@ -458,6 +493,12 @@ export const NativeTabBarController = defineUIViewController<
     controller.nativeAccessory = undefined;
     controller.nativeAccessoryButton = undefined;
     controller.nativeAccessoryTarget = undefined;
+    controller.nativePendingSelectedIndex = undefined;
+    controller.nativeSelectedIndex = undefined;
+    if (controller.nativeSelectionTimer) {
+      clearTimeout(controller.nativeSelectionTimer);
+      controller.nativeSelectionTimer = undefined;
+    }
     controller.nativeTabControllerRetainer?.dispose();
     controller.nativeTabControllerDelegate = undefined;
     controller.nativeTabControllerRetainer = undefined;
