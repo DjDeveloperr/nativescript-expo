@@ -2,11 +2,6 @@ import { runOnUIKit } from './ns';
 
 const nilCompletion = null as unknown as () => void | null;
 
-function nativeBool(target: any, key: string) {
-  const value = target?.[key];
-  return typeof value === 'function' ? Boolean(value.call(target)) : Boolean(value);
-}
-
 function visibleViewController(): UIViewController {
   const application = UIApplication.sharedApplication;
   const root = application.keyWindow?.rootViewController;
@@ -20,7 +15,7 @@ function visibleViewController(): UIViewController {
   while (current.presentedViewController) {
     const presented = current.presentedViewController;
 
-    if (nativeBool(presented, 'isBeingDismissed')) {
+    if (presented.isBeingDismissed()) {
       break;
     }
 
